@@ -19,7 +19,7 @@ func (d DB) RegisterQueue(id int64, user string) error {
 
 	// Create TOTP secret
 	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      "wooppay.com",
+		Issuer:      "test",
 		AccountName: user,
 	})
 	if err != nil {

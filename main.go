@@ -206,7 +206,7 @@ func main() {
 			return err
 		}
 		key, err := totp.Generate(totp.GenerateOpts{
-			Issuer:      "wooppay.com",
+			Issuer:      "test",
 			AccountName: user.UserName,
 			Secret:      []byte(user.TOTPSecret)})
 		if err != nil {
@@ -266,7 +266,7 @@ func main() {
 			return err
 		}
 		key, err := totp.Generate(totp.GenerateOpts{
-			Issuer:      "wooppay.com",
+			Issuer:      "test",
 			AccountName: user.UserName,
 			Secret:      []byte(user.TOTPSecret)})
 		if err != nil {
