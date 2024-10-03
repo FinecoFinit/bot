@@ -1,8 +1,8 @@
 package main
 
 import (
-	dbmng "bot/pkg/dbmng"
-	wgmng "bot/pkg/wgmng"
+	"bot/pkg/dbmng"
+	"bot/pkg/wgmng"
 	"bytes"
 	"database/sql"
 	"fmt"

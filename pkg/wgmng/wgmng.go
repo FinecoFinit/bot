@@ -1,7 +1,7 @@
 package wgmng
 
 import (
-	dbmng "bot/pkg/dbmng"
+	"bot/pkg/dbmng"
 	"database/sql"
 	"fmt"
 	"os/exec"
