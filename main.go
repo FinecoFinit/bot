@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"fmt"
 	"image/png"
-	"log"
 	"os"
 	"path/filepath"
 	"slices"
@@ -30,7 +29,7 @@ func main() {
 
 	tg, err := tele.NewBot(pref)
 	if err != nil {
-		log.Fatal(err)
+		panic(fmt.Errorf("ENV: TOKEN parse error: %w", err))
 	}
 	adminChat, err = strconv.ParseInt(os.Getenv("ADMINCHAT"), 10, 64)
 	if err != nil {
@@ -40,19 +39,19 @@ func main() {
 	// Locate DB
 	location, err := filepath.Abs(os.Getenv("DB"))
 	if err != nil {
-		log.Fatal(err)
+		panic(fmt.Errorf("db file: file doesn't exists or corrupted: %w", err))
 	}
 	// Open SQL DB
 	db, err := sql.Open("sqlite3", location)
 	if err != nil {
-		log.Fatal(err)
+		panic(fmt.Errorf("db: failed to open db %w", err))
 	}
 	s := dbmng.DB{Db: db}
 	wg := wgmng.HighWay{Db: db, Tg: tg, Sessionmanager: sessionManager, Adminchat: adminChat}
 
 	admins, err := s.GetAdmins()
 	if err != nil {
-		panic(err)
+		panic(fmt.Errorf("db: failed to get admin ids: %w", err))
 	}
 	for _, u := range admins {
 		adminDBids = append(adminDBids, u.ID)
@@ -73,7 +72,8 @@ func main() {
 
 		users, err := s.GetUsers()
 		if err != nil {
-			panic(err)
+			fmt.Println(fmt.Errorf("db: failed to get users ids: %w", err))
+			return c.Send("Временная ошибка, сообщите администратору")
 		}
 		for _, u := range users {
 			userDBids = append(userDBids, u.ID)
@@ -81,32 +81,29 @@ func main() {
 
 		queue, err := s.GetQueueUsers()
 		if err != nil {
-			panic(err)
+			fmt.Println(fmt.Errorf("db: failed to get registration queue ids: %w", err))
+			return c.Send("Временная ошибка, сообщите администратору")
 		}
 		for _, u := range queue {
 			queueDBids = append(queueDBids, u.ID)
 		}
 
-		// Registration logic
 		if slices.Contains(userDBids, tguser.ID) {
 			return c.Send("Пользователь существует")
 		}
 		if slices.Contains(queueDBids, tguser.ID) {
 			return c.Send("Регистрация в процессе")
 		} else {
-			// Register user in queue
 			err = s.RegisterQueue(tguser.ID, tgargs[0])
 			if err != nil {
-				return c.Send(err)
+				fmt.Println(err)
+				return c.Send("Временная ошибка, сообщите администратору")
 			}
-
-			// Send request to chat
 			tg.Send(
 				tele.ChatID(1254517365),
 				"В очередь добавлен новый пользователь:\nID: "+strconv.FormatInt(tguser.ID, 10)+"\nusername: @"+tguser.Username+"\nlogin: "+tgargs[0]+"\n`\n/accept "+strconv.FormatInt(tguser.ID, 10)+" [AllowedIP]`", &tele.SendOptions{
 					ParseMode: "MarkdownV2",
 				})
-
 			return c.Send("Заявка на регистрацию принята")
 		}
 	})
@@ -125,7 +122,7 @@ func main() {
 		}
 		id, err := strconv.ParseInt(tgargs[0], 10, 64)
 		if err != nil {
-			return c.Send(err)
+			return c.Send("Не удалось считать ID")
 		}
 
 		queueuser, err := s.GetQueueUser(&id)
@@ -147,7 +144,7 @@ func main() {
 
 		err = s.RegisterUser(&user)
 		if err != nil {
-			return (err)
+			return c.Send(err)
 		}
 		return c.Send("Пользователь успешно добавлен")
 	})
@@ -208,31 +205,31 @@ func main() {
 		}
 		id, err := strconv.ParseInt(tgargs[0], 10, 64)
 		if err != nil {
-			return c.Send("1")
+			return c.Send(err.Error())
 		}
 		user, err := s.GetUser(&id)
 		if err != nil {
-			return err
+			return c.Send(err.Error())
 		}
 		key, err := totp.Generate(totp.GenerateOpts{
 			Issuer:      "test",
 			AccountName: user.UserName,
 			Secret:      []byte(user.TOTPSecret)})
 		if err != nil {
-			return err
+			return c.Send(err.Error())
 		}
 		img, err := key.Image(256, 256)
 		if err != nil {
-			panic(err)
+			return c.Send(err.Error())
 		}
 		var buf bytes.Buffer
 		png.Encode(&buf, img)
 		p := &tele.Photo{File: tele.FromReader(&buf)}
 		_, err = tg.Send(tele.ChatID(id), p, &tele.SendOptions{})
 		if err != nil {
-			return err
+			return c.Send(err.Error())
 		}
-		return c.Send("err")
+		return c.Send("Креды отправлены")
 	})
 
 	tg.Handle("/enable", func(c tele.Context) error {
@@ -245,6 +242,7 @@ func main() {
 		}
 		err = s.EnableUser(&tgargs[0])
 		if err != nil {
+			fmt.Println(err)
 			return c.Send("Не удалось активировать пользователя")
 		}
 		return c.Send("Пользователь " + tgargs[0] + " активирован")
@@ -260,6 +258,7 @@ func main() {
 		}
 		err = s.DisableUser(&tgargs[0])
 		if err != nil {
+			fmt.Println(err)
 			return c.Send("Не удалось деактивировать пользователя")
 		}
 		return c.Send("Пользователь " + tgargs[0] + " деактивирован")
@@ -272,19 +271,19 @@ func main() {
 		)
 		user, err := s.GetUser(&tguser.ID)
 		if err != nil {
-			return err
+			fmt.Println(err)
 		}
 		key, err := totp.Generate(totp.GenerateOpts{
 			Issuer:      "test",
 			AccountName: user.UserName,
 			Secret:      []byte(user.TOTPSecret)})
 		if err != nil {
-			return err
+			fmt.Println(err)
 		}
 		if totp.Validate(tgtext, key.Secret()) {
 			err := wg.WgStartSession(&user)
 			if err != nil {
-				return err
+				return c.Send("Ошибка создания сессии, обратитесь к администратору")
 			}
 			return c.Send("Сессия создана")
 		}

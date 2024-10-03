@@ -23,40 +23,40 @@ func (d DB) RegisterQueue(id int64, user string) error {
 		AccountName: user,
 	})
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("func RegisterQueue: failed to get generate totp key: %w", err)
 	}
 	// Generate WG key
 	wgcom := exec.Command("wg", "genkey")
 	wgkey, err := wgcom.Output()
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("func RegisterQueue: failed to get generate peer key: %w", err)
 	}
 
 	// Calcuate IP address
 	queueIProw, err := d.Db.Query("SELECT IP from registration_queue")
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("func RegisterQueue: db: failed to query IPs from registration_queue: %w", err)
 	}
 	defer queueIProw.Close()
 	for queueIProw.Next() {
 		var IP string
 		err = queueIProw.Scan(&IP)
 		if err != nil {
-			panic(err)
+			return fmt.Errorf("func RegisterQueue: db: failed to get row value: %w", err)
 		}
 		IPs = append(IPs, IP)
 	}
 
 	userIProw, err := d.Db.Query("SELECT IP from users")
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("func RegisterQueue: db: failed to query IPs from users: %w", err)
 	}
 	defer userIProw.Close()
 	for userIProw.Next() {
 		var IP string
 		err = userIProw.Scan(&IP)
 		if err != nil {
-			panic(err)
+			return fmt.Errorf("func RegisterQueue: db: failed to get row value: %w", err)
 		}
 		IPs = append(IPs, IP)
 	}
@@ -112,7 +112,7 @@ func (d DB) EnableUser(id *string) error {
 		1,
 		&id)
 	if err != nil {
-		return fmt.Errorf("%w", err)
+		return fmt.Errorf("db: failed to enable user: %w", err)
 	}
 	return nil
 }
@@ -123,7 +123,7 @@ func (d DB) DisableUser(id *string) error {
 		0,
 		&id)
 	if err != nil {
-		return fmt.Errorf("%w", err)
+		return fmt.Errorf("db: failed to disable user: %w", err)
 	}
 	return nil
 }

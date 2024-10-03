@@ -26,7 +26,7 @@ func (d HighWay) WgStartSession(user *dbmng.User) error {
 		time.Now(),
 		user.ID)
 	if err != nil {
-		return err
+		return fmt.Errorf("db: failed to set start session: %w", err)
 	}
 	wgcom := exec.Command(
 		"wg",
@@ -62,7 +62,7 @@ func (d HighWay) WgStopSession(user *dbmng.User) error {
 		0,
 		user.ID)
 	if err != nil {
-		return err
+		return fmt.Errorf("db: failed to set stop session: %w", err)
 	}
 	wgcom := exec.Command(
 		"wg",
@@ -72,7 +72,7 @@ func (d HighWay) WgStopSession(user *dbmng.User) error {
 		"remove")
 	err = wgcom.Run()
 	if err != nil {
-		return err
+		return fmt.Errorf("wgmng: failed to stop session: %w", err)
 	}
 	return nil
 }

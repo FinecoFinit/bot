@@ -39,7 +39,7 @@ type DB struct {
 func (d DB) GetUsers() ([]User, error) {
 	rows, err := d.Db.Query("SELECT * FROM users")
 	if err != nil {
-		return nil, fmt.Errorf("query: %w", err)
+		return nil, fmt.Errorf("db: query failed: %w", err)
 	}
 	defer rows.Close()
 
@@ -68,7 +68,7 @@ func (d DB) GetUsers() ([]User, error) {
 			&Allowedips,
 			&IP)
 		if err != nil {
-			return nil, fmt.Errorf("scan row: %w", err)
+			return nil, fmt.Errorf("db: failed to scan row: %w", err)
 		}
 		users = append(users, User{
 			ID:               ID,
@@ -82,7 +82,7 @@ func (d DB) GetUsers() ([]User, error) {
 			IP:               IP})
 	}
 	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("rows: %w", err)
+		return nil, fmt.Errorf("db: rows: %w", err)
 	}
 
 	return users, nil
@@ -94,7 +94,7 @@ func (d DB) GetUser(id *int64) (User, error) {
 		"SELECT * FROM users WHERE id = $1",
 		&id)
 	if err != nil {
-		return user, fmt.Errorf("query: %w", err)
+		return user, fmt.Errorf("db: query failed: %w", err)
 	}
 	defer rows.Close()
 
@@ -121,7 +121,7 @@ func (d DB) GetUser(id *int64) (User, error) {
 			&Allowedips,
 			&IP)
 		if err != nil {
-			return user, fmt.Errorf("scan row: %w", err)
+			return user, fmt.Errorf("db: scan row: %w", err)
 		}
 		user = User{
 			ID:               ID,
@@ -135,7 +135,7 @@ func (d DB) GetUser(id *int64) (User, error) {
 			IP:               IP}
 	}
 	if err = rows.Err(); err != nil {
-		return user, fmt.Errorf("rows: %w", err)
+		return user, fmt.Errorf("db: rows: %w", err)
 	}
 	return user, nil
 }
@@ -143,7 +143,7 @@ func (d DB) GetUser(id *int64) (User, error) {
 func (d DB) GetQueueUsers() ([]QueueUser, error) {
 	rows, err := d.Db.Query("SELECT * FROM registration_queue")
 	if err != nil {
-		return nil, fmt.Errorf("query: %w", err)
+		return nil, fmt.Errorf("db: query: %w", err)
 	}
 	defer rows.Close()
 
@@ -164,14 +164,14 @@ func (d DB) GetQueueUsers() ([]QueueUser, error) {
 			&Peer,
 			&IP)
 		if err != nil {
-			return nil, fmt.Errorf("scan row: %w", err)
+			return nil, fmt.Errorf("db: scan row: %w", err)
 		}
 		queueusers = append(queueusers, QueueUser{
 			ID:       ID,
 			UserName: UserName})
 	}
 	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("rows: %w", err)
+		return nil, fmt.Errorf("db: rows: %w", err)
 	}
 
 	return queueusers, nil
@@ -183,7 +183,7 @@ func (d DB) GetQueueUser(id *int64) (QueueUser, error) {
 		"SELECT * FROM registration_queue WHERE id = $1",
 		&id)
 	if err != nil {
-		return queueuser, fmt.Errorf("query: %w", err)
+		return queueuser, fmt.Errorf("db: query: %w", err)
 	}
 	defer rows.Close()
 
@@ -202,7 +202,7 @@ func (d DB) GetQueueUser(id *int64) (QueueUser, error) {
 			&Peer,
 			&IP)
 		if err != nil {
-			return queueuser, fmt.Errorf("scan row: %w", err)
+			return queueuser, fmt.Errorf("db: scan row: %w", err)
 		}
 		queueuser = QueueUser{
 			ID:         ID,
@@ -212,7 +212,7 @@ func (d DB) GetQueueUser(id *int64) (QueueUser, error) {
 			IP:         IP}
 	}
 	if err = rows.Err(); err != nil {
-		return queueuser, fmt.Errorf("rows: %w", err)
+		return queueuser, fmt.Errorf("db: rows: %w", err)
 	}
 
 	return queueuser, nil
@@ -221,7 +221,7 @@ func (d DB) GetQueueUser(id *int64) (QueueUser, error) {
 func (d DB) GetAdmins() ([]Admin, error) {
 	rows, err := d.Db.Query("SELECT * FROM admins")
 	if err != nil {
-		return nil, fmt.Errorf("query: %w", err)
+		return nil, fmt.Errorf("db: query: %w", err)
 	}
 	defer rows.Close()
 
@@ -234,12 +234,12 @@ func (d DB) GetAdmins() ([]Admin, error) {
 		)
 		err = rows.Scan(&ID, &UserName)
 		if err != nil {
-			return nil, fmt.Errorf("scan row: %w", err)
+			return nil, fmt.Errorf("db: scan row: %w", err)
 		}
 		admins = append(admins, Admin{ID: ID, UserName: UserName})
 	}
 	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("rows: %w", err)
+		return nil, fmt.Errorf("db: rows: %w", err)
 	}
 
 	return admins, nil
