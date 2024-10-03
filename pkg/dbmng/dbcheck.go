@@ -1,4 +1,4 @@
-package dbmodule
+package dbmng
 
 import (
 	"database/sql"

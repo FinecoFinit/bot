@@ -1,10 +1,11 @@
 package main
 
 import (
-	dbmodule "bot/pkg/db"
+	dbmng "bot/pkg/dbmng"
 	wgmng "bot/pkg/wgmng"
 	"bytes"
 	"database/sql"
+	"fmt"
 	"image/png"
 	"log"
 	"os"
@@ -21,13 +22,19 @@ import (
 
 func main() {
 	var (
-		adminDBids []int64
+		adminDBids     []int64
+		sessionManager = make(map[int64]bool)
+		adminChat      int64
 	)
 	pref := tele.Settings{Token: os.Getenv("TOKEN"), Poller: &tele.LongPoller{Timeout: 10 * time.Second}}
 
-	b, err := tele.NewBot(pref)
+	tg, err := tele.NewBot(pref)
 	if err != nil {
 		log.Fatal(err)
+	}
+	adminChat, err = strconv.ParseInt(os.Getenv("ADMINCHAT"), 10, 64)
+	if err != nil {
+		panic(fmt.Errorf("ENV: ADMINCHAT parse error: %w", err))
 	}
 
 	// Locate DB
@@ -40,8 +47,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s := dbmodule.DB{Db: db}
-	wg := wgmng.DB{Db: db}
+	s := dbmng.DB{Db: db}
+	wg := wgmng.HighWay{Db: db, Tg: tg, Sessionmanager: sessionManager, Adminchat: adminChat}
 
 	admins, err := s.GetAdmins()
 	if err != nil {
@@ -51,7 +58,7 @@ func main() {
 		adminDBids = append(adminDBids, u.ID)
 	}
 
-	b.Handle("/register", func(c tele.Context) error {
+	tg.Handle("/register", func(c tele.Context) error {
 		// Get telegram user info
 		var (
 			tguser     = c.Sender()
@@ -94,15 +101,17 @@ func main() {
 			}
 
 			// Send request to chat
-			b.Send(tele.ChatID(1254517365), "В очередь добавлен новый пользователь:\nID: "+strconv.FormatInt(tguser.ID, 10)+"\nusername: @"+tguser.Username+"\nlogin: "+tgargs[0]+"\n`\n/accept "+strconv.FormatInt(tguser.ID, 10)+" [AllowedIP]`", &tele.SendOptions{
-				ParseMode: "MarkdownV2",
-			})
+			tg.Send(
+				tele.ChatID(1254517365),
+				"В очередь добавлен новый пользователь:\nID: "+strconv.FormatInt(tguser.ID, 10)+"\nusername: @"+tguser.Username+"\nlogin: "+tgargs[0]+"\n`\n/accept "+strconv.FormatInt(tguser.ID, 10)+" [AllowedIP]`", &tele.SendOptions{
+					ParseMode: "MarkdownV2",
+				})
 
 			return c.Send("Заявка на регистрацию принята")
 		}
 	})
 
-	b.Handle("/accept", func(c tele.Context) error {
+	tg.Handle("/accept", func(c tele.Context) error {
 		// Get telegram user info
 		var (
 			tguser = c.Sender()
@@ -124,7 +133,7 @@ func main() {
 			return c.Send(err)
 		}
 
-		user := dbmodule.User{
+		user := dbmng.User{
 			ID:               queueuser.ID,
 			UserName:         queueuser.UserName,
 			Enabled:          0,
@@ -143,7 +152,7 @@ func main() {
 		return c.Send("Пользователь успешно добавлен")
 	})
 
-	b.Handle("/adduser", func(c tele.Context) error {
+	tg.Handle("/adduser", func(c tele.Context) error {
 		// Get telegram user info
 		var (
 			tguser = c.Sender()
@@ -167,7 +176,7 @@ func main() {
 		if err != nil {
 			return c.Send("3")
 		}
-		user := dbmodule.User{
+		user := dbmng.User{
 			ID:               id,
 			UserName:         tgargs[1],
 			Enabled:          enabled,
@@ -186,7 +195,7 @@ func main() {
 		return c.Send("Пользователь добавлен")
 	})
 
-	b.Handle("/sendinfo", func(c tele.Context) error {
+	tg.Handle("/sendinfo", func(c tele.Context) error {
 		var (
 			tguser = c.Sender()
 			tgargs = c.Args()
@@ -219,14 +228,14 @@ func main() {
 		var buf bytes.Buffer
 		png.Encode(&buf, img)
 		p := &tele.Photo{File: tele.FromReader(&buf)}
-		_, err = b.Send(tele.ChatID(id), p, &tele.SendOptions{})
+		_, err = tg.Send(tele.ChatID(id), p, &tele.SendOptions{})
 		if err != nil {
 			return err
 		}
 		return c.Send("err")
 	})
 
-	b.Handle("/enable", func(c tele.Context) error {
+	tg.Handle("/enable", func(c tele.Context) error {
 		var (
 			tguser = c.Sender()
 			tgargs = c.Args()
@@ -241,7 +250,7 @@ func main() {
 		return c.Send("Пользователь " + tgargs[0] + " активирован")
 	})
 
-	b.Handle("/disable", func(c tele.Context) error {
+	tg.Handle("/disable", func(c tele.Context) error {
 		var (
 			tguser = c.Sender()
 			tgargs = c.Args()
@@ -256,7 +265,7 @@ func main() {
 		return c.Send("Пользователь " + tgargs[0] + " деактивирован")
 	})
 
-	b.Handle(tele.OnText, func(c tele.Context) error {
+	tg.Handle(tele.OnText, func(c tele.Context) error {
 		var (
 			tguser = c.Sender()
 			tgtext = c.Text()
@@ -277,11 +286,11 @@ func main() {
 			if err != nil {
 				return err
 			}
-			return c.Send("good")
+			return c.Send("Сессия создана")
 		}
 
 		return c.Send(tgtext)
 	})
 
-	b.Start()
+	tg.Start()
 }
