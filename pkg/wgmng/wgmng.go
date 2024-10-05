@@ -15,8 +15,8 @@ import (
 type HighWay struct {
 	Db             *sql.DB
 	Tg             *tele.Bot
-	Sessionmanager map[int64]bool
-	Adminchat      int64
+	SessionManager map[int64]bool
+	AdminChat      int64
 }
 
 func (d HighWay) WgStartSession(user *dbmng.User) error {
@@ -38,20 +38,20 @@ func (d HighWay) WgStartSession(user *dbmng.User) error {
 	if err != nil {
 		return fmt.Errorf("wgmng: failed to start session: %w", err)
 	}
-	d.Sessionmanager[user.ID] = true
+	d.SessionManager[user.ID] = true
 	go d.Session(user, time.Now())
 	return nil
 }
 
 func (d HighWay) Session(user *dbmng.User, t time.Time) {
-	for d.Sessionmanager[user.ID] {
+	for d.SessionManager[user.ID] {
 		if time.Now().Compare(t.Add(time.Hour*11)) == +1 {
 			err := d.WgStopSession(user)
 			if err != nil {
-				d.Tg.Send(tele.ChatID(d.Adminchat), err)
+				d.Tg.Send(tele.ChatID(d.AdminChat), err)
 			}
 			d.Tg.Send(tele.ChatID(user.ID), "Сессия завершена")
-			d.Sessionmanager[user.ID] = false
+			d.SessionManager[user.ID] = false
 		}
 	}
 }

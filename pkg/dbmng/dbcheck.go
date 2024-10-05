@@ -15,7 +15,7 @@ type User struct {
 	Session          int
 	SessionTimeStamp string
 	Peer             string
-	Allowedips       string
+	AllowedIPs       string
 	IP               int
 }
 
@@ -54,7 +54,7 @@ func (d DB) GetUsers() ([]User, error) {
 			Session          int
 			SessionTimeStamp string
 			Peer             string
-			Allowedips       string
+			AllowedIPs       string
 			IP               int
 		)
 		err = rows.Scan(
@@ -65,7 +65,7 @@ func (d DB) GetUsers() ([]User, error) {
 			&Session,
 			&SessionTimeStamp,
 			&Peer,
-			&Allowedips,
+			&AllowedIPs,
 			&IP)
 		if err != nil {
 			return nil, fmt.Errorf("db: failed to scan row: %w", err)
@@ -78,7 +78,7 @@ func (d DB) GetUsers() ([]User, error) {
 			Session:          Session,
 			SessionTimeStamp: SessionTimeStamp,
 			Peer:             Peer,
-			Allowedips:       Allowedips,
+			AllowedIPs:       AllowedIPs,
 			IP:               IP})
 	}
 	if err = rows.Err(); err != nil {
@@ -107,7 +107,7 @@ func (d DB) GetUser(id *int64) (User, error) {
 			Session          int
 			SessionTimeStamp string
 			Peer             string
-			Allowedips       string
+			AllowedIPs       string
 			IP               int
 		)
 		err = rows.Scan(
@@ -118,7 +118,7 @@ func (d DB) GetUser(id *int64) (User, error) {
 			&Session,
 			&SessionTimeStamp,
 			&Peer,
-			&Allowedips,
+			&AllowedIPs,
 			&IP)
 		if err != nil {
 			return user, fmt.Errorf("db: scan row: %w", err)
@@ -131,7 +131,7 @@ func (d DB) GetUser(id *int64) (User, error) {
 			Session:          Session,
 			SessionTimeStamp: SessionTimeStamp,
 			Peer:             Peer,
-			Allowedips:       Allowedips,
+			AllowedIPs:       AllowedIPs,
 			IP:               IP}
 	}
 	if err = rows.Err(); err != nil {
@@ -147,7 +147,7 @@ func (d DB) GetQueueUsers() ([]QueueUser, error) {
 	}
 	defer rows.Close()
 
-	var queueusers []QueueUser
+	var qUsers []QueueUser
 
 	for rows.Next() {
 		var (
@@ -166,7 +166,7 @@ func (d DB) GetQueueUsers() ([]QueueUser, error) {
 		if err != nil {
 			return nil, fmt.Errorf("db: scan row: %w", err)
 		}
-		queueusers = append(queueusers, QueueUser{
+		qUsers = append(qUsers, QueueUser{
 			ID:       ID,
 			UserName: UserName})
 	}
@@ -174,16 +174,16 @@ func (d DB) GetQueueUsers() ([]QueueUser, error) {
 		return nil, fmt.Errorf("db: rows: %w", err)
 	}
 
-	return queueusers, nil
+	return qUsers, nil
 }
 
 func (d DB) GetQueueUser(id *int64) (QueueUser, error) {
-	var queueuser QueueUser
+	var qUser QueueUser
 	rows, err := d.Db.Query(
 		"SELECT * FROM registration_queue WHERE id = $1",
 		&id)
 	if err != nil {
-		return queueuser, fmt.Errorf("db: query: %w", err)
+		return qUser, fmt.Errorf("db: query: %w", err)
 	}
 	defer rows.Close()
 
@@ -202,9 +202,9 @@ func (d DB) GetQueueUser(id *int64) (QueueUser, error) {
 			&Peer,
 			&IP)
 		if err != nil {
-			return queueuser, fmt.Errorf("db: scan row: %w", err)
+			return qUser, fmt.Errorf("db: scan row: %w", err)
 		}
-		queueuser = QueueUser{
+		qUser = QueueUser{
 			ID:         ID,
 			UserName:   UserName,
 			TOTPSecret: TOTPSecret,
@@ -212,10 +212,10 @@ func (d DB) GetQueueUser(id *int64) (QueueUser, error) {
 			IP:         IP}
 	}
 	if err = rows.Err(); err != nil {
-		return queueuser, fmt.Errorf("db: rows: %w", err)
+		return qUser, fmt.Errorf("db: rows: %w", err)
 	}
 
-	return queueuser, nil
+	return qUser, nil
 }
 
 func (d DB) GetAdmins() ([]Admin, error) {

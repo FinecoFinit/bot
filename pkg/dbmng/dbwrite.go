@@ -13,7 +13,7 @@ import (
 
 func (d DB) RegisterQueue(id int64, user string) error {
 	var (
-		IPspool []int
+		IPsPool []int
 		IPs     []string
 	)
 
@@ -62,10 +62,10 @@ func (d DB) RegisterQueue(id int64, user string) error {
 	}
 
 	for i := 130; i < 255; i++ {
-		IPspool = append(IPspool, i)
+		IPsPool = append(IPsPool, i)
 	}
 
-	IPsloc := slices.DeleteFunc(IPspool, func(n int) bool {
+	IPsloc := slices.DeleteFunc(IPsPool, func(n int) bool {
 		return slices.Contains(IPs, strconv.Itoa(n))
 	})
 
@@ -92,7 +92,7 @@ func (d DB) RegisterUser(user *User) error {
 		&user.Session,
 		&user.SessionTimeStamp,
 		&user.Peer,
-		&user.Allowedips,
+		&user.AllowedIPs,
 		&user.IP)
 	if err != nil {
 		return fmt.Errorf("db: insert into users: %w", err)

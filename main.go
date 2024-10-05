@@ -21,7 +21,7 @@ import (
 
 func main() {
 	var (
-		adminDBids     []int64
+		aDBids         []int64
 		sessionManager = make(map[int64]bool)
 		adminChat      int64
 	)
@@ -47,26 +47,26 @@ func main() {
 		panic(fmt.Errorf("db: failed to open db %w", err))
 	}
 	s := dbmng.DB{Db: db}
-	wg := wgmng.HighWay{Db: db, Tg: tg, Sessionmanager: sessionManager, Adminchat: adminChat}
+	wg := wgmng.HighWay{Db: db, Tg: tg, SessionManager: sessionManager, AdminChat: adminChat}
 
 	admins, err := s.GetAdmins()
 	if err != nil {
 		panic(fmt.Errorf("db: failed to get admin ids: %w", err))
 	}
 	for _, u := range admins {
-		adminDBids = append(adminDBids, u.ID)
+		aDBids = append(aDBids, u.ID)
 	}
 
 	tg.Handle("/register", func(c tele.Context) error {
 		// Get telegram user info
 		var (
-			tguser     = c.Sender()
-			tgargs     = c.Args()
-			userDBids  []int64
-			queueDBids []int64
+			tgu       = c.Sender()
+			tga       = c.Args()
+			userDBids []int64
+			qDBids    []int64
 		)
 
-		if len(tgargs) != 1 {
+		if len(tga) != 1 {
 			return c.Send("Ошибка введенных параметров")
 		}
 
@@ -85,23 +85,23 @@ func main() {
 			return c.Send("Временная ошибка, сообщите администратору")
 		}
 		for _, u := range queue {
-			queueDBids = append(queueDBids, u.ID)
+			qDBids = append(qDBids, u.ID)
 		}
 
-		if slices.Contains(userDBids, tguser.ID) {
+		if slices.Contains(userDBids, tgu.ID) {
 			return c.Send("Пользователь существует")
 		}
-		if slices.Contains(queueDBids, tguser.ID) {
+		if slices.Contains(qDBids, tgu.ID) {
 			return c.Send("Регистрация в процессе")
 		} else {
-			err = s.RegisterQueue(tguser.ID, tgargs[0])
+			err = s.RegisterQueue(tgu.ID, tga[0])
 			if err != nil {
 				fmt.Println(err)
 				return c.Send("Временная ошибка, сообщите администратору")
 			}
 			tg.Send(
 				tele.ChatID(1254517365),
-				"В очередь добавлен новый пользователь:\nID: "+strconv.FormatInt(tguser.ID, 10)+"\nusername: @"+tguser.Username+"\nlogin: "+tgargs[0]+"\n`\n/accept "+strconv.FormatInt(tguser.ID, 10)+" [AllowedIP]`", &tele.SendOptions{
+				"В очередь добавлен новый пользователь:\nID: "+strconv.FormatInt(tgu.ID, 10)+"\nusername: @"+tgu.Username+"\nlogin: "+tga[0]+"\n`\n/accept "+strconv.FormatInt(tgu.ID, 10)+" [AllowedIP]`", &tele.SendOptions{
 					ParseMode: "MarkdownV2",
 				})
 			return c.Send("Заявка на регистрацию принята")
@@ -111,35 +111,35 @@ func main() {
 	tg.Handle("/accept", func(c tele.Context) error {
 		// Get telegram user info
 		var (
-			tguser = c.Sender()
-			tgargs = c.Args()
+			tgu = c.Sender()
+			tga = c.Args()
 		)
-		if !slices.Contains(adminDBids, tguser.ID) {
+		if !slices.Contains(aDBids, tgu.ID) {
 			return c.Send("Unknown")
 		}
-		if len(tgargs) != 2 {
+		if len(tga) != 2 {
 			return c.Send("Ошибка введенных параметров")
 		}
-		id, err := strconv.ParseInt(tgargs[0], 10, 64)
+		id, err := strconv.ParseInt(tga[0], 10, 64)
 		if err != nil {
 			return c.Send("Не удалось считать ID")
 		}
 
-		queueuser, err := s.GetQueueUser(&id)
+		qUser, err := s.GetQueueUser(&id)
 		if err != nil {
 			return c.Send(err)
 		}
 
 		user := dbmng.User{
-			ID:               queueuser.ID,
-			UserName:         queueuser.UserName,
+			ID:               qUser.ID,
+			UserName:         qUser.UserName,
 			Enabled:          0,
-			TOTPSecret:       queueuser.TOTPSecret,
+			TOTPSecret:       qUser.TOTPSecret,
 			Session:          0,
 			SessionTimeStamp: "never",
-			Peer:             queueuser.Peer,
-			Allowedips:       tgargs[1],
-			IP:               queueuser.IP,
+			Peer:             qUser.Peer,
+			AllowedIPs:       tga[1],
+			IP:               qUser.IP,
 		}
 
 		err = s.RegisterUser(&user)
@@ -152,36 +152,36 @@ func main() {
 	tg.Handle("/adduser", func(c tele.Context) error {
 		// Get telegram user info
 		var (
-			tguser = c.Sender()
-			tgargs = c.Args()
+			tgu = c.Sender()
+			tga = c.Args()
 		)
-		if !slices.Contains(adminDBids, tguser.ID) {
+		if !slices.Contains(aDBids, tgu.ID) {
 			return c.Send("Unknown")
 		}
-		if len(tgargs) != 7 {
+		if len(tga) != 7 {
 			return c.Send("Ошибка введенных параметров")
 		}
-		id, err := strconv.ParseInt(tgargs[0], 10, 64)
+		id, err := strconv.ParseInt(tga[0], 10, 64)
 		if err != nil {
 			return c.Send("1")
 		}
-		enabled, err := strconv.Atoi(tgargs[2])
+		enabled, err := strconv.Atoi(tga[2])
 		if err != nil {
 			return c.Send("2")
 		}
-		ip, err := strconv.Atoi(tgargs[6])
+		ip, err := strconv.Atoi(tga[6])
 		if err != nil {
 			return c.Send("3")
 		}
 		user := dbmng.User{
 			ID:               id,
-			UserName:         tgargs[1],
+			UserName:         tga[1],
 			Enabled:          enabled,
-			TOTPSecret:       tgargs[3],
+			TOTPSecret:       tga[3],
 			Session:          0,
 			SessionTimeStamp: "never",
-			Peer:             tgargs[4],
-			Allowedips:       tgargs[5],
+			Peer:             tga[4],
+			AllowedIPs:       tga[5],
 			IP:               ip,
 		}
 		err = s.RegisterUser(&user)
@@ -194,16 +194,16 @@ func main() {
 
 	tg.Handle("/sendinfo", func(c tele.Context) error {
 		var (
-			tguser = c.Sender()
-			tgargs = c.Args()
+			tgu = c.Sender()
+			tga = c.Args()
 		)
-		if !slices.Contains(adminDBids, tguser.ID) {
+		if !slices.Contains(aDBids, tgu.ID) {
 			return c.Send("Unknown")
 		}
-		if len(tgargs) != 1 {
+		if len(tga) != 1 {
 			return c.Send("Ошибка введенных параметров")
 		}
-		id, err := strconv.ParseInt(tgargs[0], 10, 64)
+		id, err := strconv.ParseInt(tga[0], 10, 64)
 		if err != nil {
 			return c.Send(err.Error())
 		}
@@ -234,42 +234,42 @@ func main() {
 
 	tg.Handle("/enable", func(c tele.Context) error {
 		var (
-			tguser = c.Sender()
-			tgargs = c.Args()
+			tgu = c.Sender()
+			tga = c.Args()
 		)
-		if !slices.Contains(adminDBids, tguser.ID) {
+		if !slices.Contains(aDBids, tgu.ID) {
 			return c.Send("Unknown")
 		}
-		err = s.EnableUser(&tgargs[0])
+		err = s.EnableUser(&tga[0])
 		if err != nil {
 			fmt.Println(err)
 			return c.Send("Не удалось активировать пользователя")
 		}
-		return c.Send("Пользователь " + tgargs[0] + " активирован")
+		return c.Send("Пользователь " + tga[0] + " активирован")
 	})
 
 	tg.Handle("/disable", func(c tele.Context) error {
 		var (
-			tguser = c.Sender()
-			tgargs = c.Args()
+			tgu = c.Sender()
+			tga = c.Args()
 		)
-		if !slices.Contains(adminDBids, tguser.ID) {
+		if !slices.Contains(aDBids, tgu.ID) {
 			return c.Send("Unknown")
 		}
-		err = s.DisableUser(&tgargs[0])
+		err = s.DisableUser(&tga[0])
 		if err != nil {
 			fmt.Println(err)
 			return c.Send("Не удалось деактивировать пользователя")
 		}
-		return c.Send("Пользователь " + tgargs[0] + " деактивирован")
+		return c.Send("Пользователь " + tga[0] + " деактивирован")
 	})
 
 	tg.Handle(tele.OnText, func(c tele.Context) error {
 		var (
-			tguser = c.Sender()
-			tgtext = c.Text()
+			tgu = c.Sender()
+			tgt = c.Text()
 		)
-		user, err := s.GetUser(&tguser.ID)
+		user, err := s.GetUser(&tgu.ID)
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -280,7 +280,7 @@ func main() {
 		if err != nil {
 			fmt.Println(err)
 		}
-		if totp.Validate(tgtext, key.Secret()) {
+		if totp.Validate(tgt, key.Secret()) {
 			err := wg.WgStartSession(&user)
 			if err != nil {
 				return c.Send("Ошибка создания сессии, обратитесь к администратору")
@@ -288,7 +288,7 @@ func main() {
 			return c.Send("Сессия создана")
 		}
 
-		return c.Send(tgtext)
+		return c.Send(tgt)
 	})
 
 	tg.Start()
