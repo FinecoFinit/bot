@@ -15,6 +15,7 @@ type User struct {
 	Session          int
 	SessionTimeStamp string
 	Peer             string
+	PeerPub          string
 	AllowedIPs       string
 	IP               int
 }
@@ -29,6 +30,7 @@ type QueueUser struct {
 	UserName   string
 	TOTPSecret string
 	Peer       string
+	PeerPub    string
 	IP         int
 }
 
@@ -54,6 +56,7 @@ func (d DB) GetUsers() ([]User, error) {
 			Session          int
 			SessionTimeStamp string
 			Peer             string
+			PeerPub          string
 			AllowedIPs       string
 			IP               int
 		)
@@ -65,6 +68,7 @@ func (d DB) GetUsers() ([]User, error) {
 			&Session,
 			&SessionTimeStamp,
 			&Peer,
+			&PeerPub,
 			&AllowedIPs,
 			&IP)
 		if err != nil {
@@ -78,6 +82,7 @@ func (d DB) GetUsers() ([]User, error) {
 			Session:          Session,
 			SessionTimeStamp: SessionTimeStamp,
 			Peer:             Peer,
+			PeerPub:          PeerPub,
 			AllowedIPs:       AllowedIPs,
 			IP:               IP})
 	}
@@ -107,6 +112,7 @@ func (d DB) GetUser(id *int64) (User, error) {
 			Session          int
 			SessionTimeStamp string
 			Peer             string
+			PeerPub          string
 			AllowedIPs       string
 			IP               int
 		)
@@ -118,6 +124,7 @@ func (d DB) GetUser(id *int64) (User, error) {
 			&Session,
 			&SessionTimeStamp,
 			&Peer,
+			&PeerPub,
 			&AllowedIPs,
 			&IP)
 		if err != nil {
@@ -131,6 +138,7 @@ func (d DB) GetUser(id *int64) (User, error) {
 			Session:          Session,
 			SessionTimeStamp: SessionTimeStamp,
 			Peer:             Peer,
+			PeerPub:          PeerPub,
 			AllowedIPs:       AllowedIPs,
 			IP:               IP}
 	}
@@ -155,6 +163,7 @@ func (d DB) GetQueueUsers() ([]QueueUser, error) {
 			UserName   string
 			TOTPSecret string
 			Peer       string
+			PeerPub    string
 			IP         int
 		)
 		err = rows.Scan(
@@ -162,6 +171,7 @@ func (d DB) GetQueueUsers() ([]QueueUser, error) {
 			&UserName,
 			&TOTPSecret,
 			&Peer,
+			&PeerPub,
 			&IP)
 		if err != nil {
 			return nil, fmt.Errorf("db: scan row: %w", err)
@@ -193,6 +203,7 @@ func (d DB) GetQueueUser(id *int64) (QueueUser, error) {
 			UserName   string
 			TOTPSecret string
 			Peer       string
+			PeerPub    string
 			IP         int
 		)
 		err = rows.Scan(
@@ -200,6 +211,7 @@ func (d DB) GetQueueUser(id *int64) (QueueUser, error) {
 			&UserName,
 			&TOTPSecret,
 			&Peer,
+			&PeerPub,
 			&IP)
 		if err != nil {
 			return qUser, fmt.Errorf("db: scan row: %w", err)
@@ -209,6 +221,7 @@ func (d DB) GetQueueUser(id *int64) (QueueUser, error) {
 			UserName:   UserName,
 			TOTPSecret: TOTPSecret,
 			Peer:       Peer,
+			PeerPub:    PeerPub,
 			IP:         IP}
 	}
 	if err = rows.Err(); err != nil {

@@ -31,7 +31,7 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("ENV: TOKEN parse error: %w", err))
 	}
-	adminChat, err = strconv.ParseInt(os.Getenv("ADMINCHAT"), 10, 64)
+	adminChat, err = strconv.ParseInt(os.Getenv("ADMIN-CHAT"), 10, 64)
 	if err != nil {
 		panic(fmt.Errorf("ENV: ADMINCHAT parse error: %w", err))
 	}
@@ -99,11 +99,14 @@ func main() {
 				fmt.Println(err)
 				return c.Send("Временная ошибка, сообщите администратору")
 			}
-			tg.Send(
+			_, err = tg.Send(
 				tele.ChatID(1254517365),
 				"В очередь добавлен новый пользователь:\nID: "+strconv.FormatInt(tgu.ID, 10)+"\nusername: @"+tgu.Username+"\nlogin: "+tga[0]+"\n`\n/accept "+strconv.FormatInt(tgu.ID, 10)+" [AllowedIP]`", &tele.SendOptions{
 					ParseMode: "MarkdownV2",
 				})
+			if err != nil {
+				return c.Send(err.Error())
+			}
 			return c.Send("Заявка на регистрацию принята")
 		}
 	})
@@ -158,7 +161,7 @@ func main() {
 		if !slices.Contains(aDBids, tgu.ID) {
 			return c.Send("Unknown")
 		}
-		if len(tga) != 7 {
+		if len(tga) != 8 {
 			return c.Send("Ошибка введенных параметров")
 		}
 		id, err := strconv.ParseInt(tga[0], 10, 64)
@@ -169,7 +172,7 @@ func main() {
 		if err != nil {
 			return c.Send("2")
 		}
-		ip, err := strconv.Atoi(tga[6])
+		ip, err := strconv.Atoi(tga[7])
 		if err != nil {
 			return c.Send("3")
 		}
@@ -181,7 +184,8 @@ func main() {
 			Session:          0,
 			SessionTimeStamp: "never",
 			Peer:             tga[4],
-			AllowedIPs:       tga[5],
+			PeerPub:          tga[5],
+			AllowedIPs:       tga[6],
 			IP:               ip,
 		}
 		err = s.RegisterUser(&user)
@@ -192,10 +196,11 @@ func main() {
 		return c.Send("Пользователь добавлен")
 	})
 
-	tg.Handle("/sendinfo", func(c tele.Context) error {
+	tg.Handle("/sendcreds", func(c tele.Context) error {
 		var (
 			tgu = c.Sender()
 			tga = c.Args()
+			buf bytes.Buffer
 		)
 		if !slices.Contains(aDBids, tgu.ID) {
 			return c.Send("Unknown")
@@ -222,8 +227,10 @@ func main() {
 		if err != nil {
 			return c.Send(err.Error())
 		}
-		var buf bytes.Buffer
-		png.Encode(&buf, img)
+		err = png.Encode(&buf, img)
+		if err != nil {
+			return c.Send(err.Error())
+		}
 		p := &tele.Photo{File: tele.FromReader(&buf)}
 		_, err = tg.Send(tele.ChatID(id), p, &tele.SendOptions{})
 		if err != nil {

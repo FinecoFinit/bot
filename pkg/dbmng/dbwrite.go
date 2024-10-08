@@ -1,6 +1,7 @@
 package dbmng
 
 import (
+	"bytes"
 	"fmt"
 	"os/exec"
 	"slices"
@@ -22,39 +23,48 @@ func (d DB) RegisterQueue(id int64, user string) error {
 		Issuer:      "test",
 		AccountName: user,
 	})
+
 	if err != nil {
 		return fmt.Errorf("func RegisterQueue: failed to get generate totp key: %w", err)
 	}
-	// Generate WG key
-	wgcom := exec.Command("wg", "genkey")
-	wgkey, err := wgcom.Output()
+
+	wgCom := exec.Command("wg", "genkey")
+	wgKey, err := wgCom.Output()
+
 	if err != nil {
 		return fmt.Errorf("func RegisterQueue: failed to get generate peer key: %w", err)
 	}
 
-	// Calcuate IP address
-	queueIProw, err := d.Db.Query("SELECT IP from registration_queue")
+	wgCom = exec.Command("wg", "genkey")
+	wgCom.Stdin = bytes.NewBuffer(wgKey)
+
 	if err != nil {
-		return fmt.Errorf("func RegisterQueue: db: failed to query IPs from registration_queue: %w", err)
+		return fmt.Errorf("func RegisterQueue: failed to get generate peer key: %w", err)
 	}
-	defer queueIProw.Close()
-	for queueIProw.Next() {
+
+	// Calculate IP address
+	qIProw, err := d.Db.Query("SELECT IP from registration_queue")
+	if err != nil {
+		return fmt.Errorf("RegisterQueue: db: failed to query IPs from registration_queue: %w", err)
+	}
+	defer qIProw.Close()
+	for qIProw.Next() {
 		var IP string
-		err = queueIProw.Scan(&IP)
+		err = qIProw.Scan(&IP)
 		if err != nil {
 			return fmt.Errorf("func RegisterQueue: db: failed to get row value: %w", err)
 		}
 		IPs = append(IPs, IP)
 	}
 
-	userIProw, err := d.Db.Query("SELECT IP from users")
+	uIProw, err := d.Db.Query("SELECT IP from users")
 	if err != nil {
 		return fmt.Errorf("func RegisterQueue: db: failed to query IPs from users: %w", err)
 	}
-	defer userIProw.Close()
-	for userIProw.Next() {
+	defer uIProw.Close()
+	for uIProw.Next() {
 		var IP string
-		err = userIProw.Scan(&IP)
+		err = uIProw.Scan(&IP)
 		if err != nil {
 			return fmt.Errorf("func RegisterQueue: db: failed to get row value: %w", err)
 		}
@@ -65,17 +75,18 @@ func (d DB) RegisterQueue(id int64, user string) error {
 		IPsPool = append(IPsPool, i)
 	}
 
-	IPsloc := slices.DeleteFunc(IPsPool, func(n int) bool {
+	IPsOctet := slices.DeleteFunc(IPsPool, func(n int) bool {
 		return slices.Contains(IPs, strconv.Itoa(n))
 	})
 
 	_, err = d.Db.Exec(
-		"insert into registration_queue(ID, UserName, TOTPSecret, Peer, IP) values($1,$2,$3,$4,$5)",
+		"INSERT INTO registration_queue(ID, UserName, TOTPSecret, Peer, PeerPub, IP) VALUES($1,$2,$3,$4,$5,$6)",
 		id,
 		user,
 		key.Secret(),
-		strings.TrimSuffix(string(wgkey[:]), "\n"),
-		IPsloc[0])
+		strings.TrimSuffix(string(wgKey[:]), "\n"),
+		strings.TrimSuffix(string(wgKeyPub[:]), "\n"),
+		IPsOctet[0])
 	if err != nil {
 		return fmt.Errorf("db: insert into registration_queue: %w", err)
 	}
@@ -84,7 +95,7 @@ func (d DB) RegisterQueue(id int64, user string) error {
 
 func (d DB) RegisterUser(user *User) error {
 	_, err := d.Db.Exec(
-		"INSERT INTO users(ID,UserName,Enabled,TOTPSecret,Session,SessionTimeStamp,Peer,AllowedIPs,IP) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+		"INSERT INTO users(ID, UserName, Enabled, TOTPSecret, Session, SessionTimeStamp, Peer, PeerPub, AllowedIPs, IP) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
 		&user.ID,
 		&user.UserName,
 		&user.Enabled,
@@ -92,6 +103,7 @@ func (d DB) RegisterUser(user *User) error {
 		&user.Session,
 		&user.SessionTimeStamp,
 		&user.Peer,
+		&user.PeerPub,
 		&user.AllowedIPs,
 		&user.IP)
 	if err != nil {
