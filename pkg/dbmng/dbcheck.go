@@ -15,6 +15,7 @@ type User struct {
 	Session          int
 	SessionTimeStamp string
 	Peer             string
+	PeerPre          string
 	PeerPub          string
 	AllowedIPs       string
 	IP               int
@@ -31,6 +32,7 @@ type QueueUser struct {
 	TOTPSecret string
 	Peer       string
 	PeerPub    string
+	PeerPre    string
 	IP         int
 }
 
@@ -56,6 +58,7 @@ func (d DB) GetUsers() ([]User, error) {
 			Session          int
 			SessionTimeStamp string
 			Peer             string
+			PeerPre          string
 			PeerPub          string
 			AllowedIPs       string
 			IP               int
@@ -68,6 +71,7 @@ func (d DB) GetUsers() ([]User, error) {
 			&Session,
 			&SessionTimeStamp,
 			&Peer,
+			&PeerPre,
 			&PeerPub,
 			&AllowedIPs,
 			&IP)
@@ -83,6 +87,7 @@ func (d DB) GetUsers() ([]User, error) {
 			SessionTimeStamp: SessionTimeStamp,
 			Peer:             Peer,
 			PeerPub:          PeerPub,
+			PeerPre:          PeerPre,
 			AllowedIPs:       AllowedIPs,
 			IP:               IP})
 	}
@@ -112,6 +117,7 @@ func (d DB) GetUser(id *int64) (User, error) {
 			Session          int
 			SessionTimeStamp string
 			Peer             string
+			PeerPre          string
 			PeerPub          string
 			AllowedIPs       string
 			IP               int
@@ -124,6 +130,7 @@ func (d DB) GetUser(id *int64) (User, error) {
 			&Session,
 			&SessionTimeStamp,
 			&Peer,
+			&PeerPre,
 			&PeerPub,
 			&AllowedIPs,
 			&IP)
@@ -138,6 +145,7 @@ func (d DB) GetUser(id *int64) (User, error) {
 			Session:          Session,
 			SessionTimeStamp: SessionTimeStamp,
 			Peer:             Peer,
+			PeerPre:          PeerPre,
 			PeerPub:          PeerPub,
 			AllowedIPs:       AllowedIPs,
 			IP:               IP}
@@ -163,6 +171,7 @@ func (d DB) GetQueueUsers() ([]QueueUser, error) {
 			UserName   string
 			TOTPSecret string
 			Peer       string
+			PeerPre    string
 			PeerPub    string
 			IP         int
 		)
@@ -171,6 +180,7 @@ func (d DB) GetQueueUsers() ([]QueueUser, error) {
 			&UserName,
 			&TOTPSecret,
 			&Peer,
+			&PeerPre,
 			&PeerPub,
 			&IP)
 		if err != nil {
@@ -203,6 +213,7 @@ func (d DB) GetQueueUser(id *int64) (QueueUser, error) {
 			UserName   string
 			TOTPSecret string
 			Peer       string
+			PeerPre    string
 			PeerPub    string
 			IP         int
 		)
@@ -211,6 +222,7 @@ func (d DB) GetQueueUser(id *int64) (QueueUser, error) {
 			&UserName,
 			&TOTPSecret,
 			&Peer,
+			&PeerPre,
 			&PeerPub,
 			&IP)
 		if err != nil {
@@ -221,6 +233,7 @@ func (d DB) GetQueueUser(id *int64) (QueueUser, error) {
 			UserName:   UserName,
 			TOTPSecret: TOTPSecret,
 			Peer:       Peer,
+			PeerPre:    PeerPre,
 			PeerPub:    PeerPub,
 			IP:         IP}
 	}

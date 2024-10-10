@@ -30,16 +30,21 @@ func (d DB) RegisterQueue(id int64, user string) error {
 
 	wgCom := exec.Command("wg", "genkey")
 	wgKey, err := wgCom.Output()
-
 	if err != nil {
 		return fmt.Errorf("func RegisterQueue: failed to get generate peer key: %w", err)
 	}
 
-	wgCom = exec.Command("wg", "genkey")
-	wgCom.Stdin = bytes.NewBuffer(wgKey)
-
+	wgCom = exec.Command("wg", "genpsk")
+	wgKeyPre, err := wgCom.Output()
 	if err != nil {
 		return fmt.Errorf("func RegisterQueue: failed to get generate peer key: %w", err)
+	}
+
+	wgCom = exec.Command("wg", "pubkey")
+	wgCom.Stdin = bytes.NewBuffer(wgKey)
+	wgKeyPub, err := wgCom.Output()
+	if err != nil {
+		return fmt.Errorf("func RegisterQueue: failed to get generate pub key: %w", err)
 	}
 
 	// Calculate IP address
@@ -80,12 +85,13 @@ func (d DB) RegisterQueue(id int64, user string) error {
 	})
 
 	_, err = d.Db.Exec(
-		"INSERT INTO registration_queue(ID, UserName, TOTPSecret, Peer, PeerPub, IP) VALUES($1,$2,$3,$4,$5,$6)",
+		"INSERT INTO registration_queue(ID, UserName, TOTPSecret, Peer, PeerPre, PeerPub, IP) VALUES($1,$2,$3,$4,$5,$6,$7)",
 		id,
 		user,
 		key.Secret(),
-		strings.TrimSuffix(string(wgKey[:]), "\n"),
-		strings.TrimSuffix(string(wgKeyPub[:]), "\n"),
+		strings.TrimSuffix(string(wgKey[:]), "\r\n"),
+		strings.TrimSuffix(string(wgKeyPre[:]), "\r\n"),
+		strings.TrimSuffix(string(wgKeyPub[:]), "\r\n"),
 		IPsOctet[0])
 	if err != nil {
 		return fmt.Errorf("db: insert into registration_queue: %w", err)
@@ -95,7 +101,7 @@ func (d DB) RegisterQueue(id int64, user string) error {
 
 func (d DB) RegisterUser(user *User) error {
 	_, err := d.Db.Exec(
-		"INSERT INTO users(ID, UserName, Enabled, TOTPSecret, Session, SessionTimeStamp, Peer, PeerPub, AllowedIPs, IP) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+		"INSERT INTO users(ID, UserName, Enabled, TOTPSecret, Session, SessionTimeStamp, Peer, PeerPre, PeerPub, AllowedIPs, IP) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
 		&user.ID,
 		&user.UserName,
 		&user.Enabled,
@@ -103,6 +109,7 @@ func (d DB) RegisterUser(user *User) error {
 		&user.Session,
 		&user.SessionTimeStamp,
 		&user.Peer,
+		&user.PeerPre,
 		&user.PeerPub,
 		&user.AllowedIPs,
 		&user.IP)

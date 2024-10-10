@@ -4,6 +4,7 @@ import (
 	"bot/pkg/dbmng"
 	"database/sql"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"time"
@@ -20,6 +21,9 @@ type HighWay struct {
 }
 
 func (d HighWay) WgStartSession(user *dbmng.User) error {
+	var (
+		preK = "/opt/wg/prekeys/" + strconv.FormatInt(user.ID, 10)
+	)
 	_, err := d.Db.Exec(
 		"UPDATE users SET Session = $1,SessionTimeStamp = $2 WHERE id = $3",
 		1,
@@ -28,11 +32,18 @@ func (d HighWay) WgStartSession(user *dbmng.User) error {
 	if err != nil {
 		return fmt.Errorf("db: failed to set start session: %w", err)
 	}
+	if _, err := os.Stat(preK); os.IsNotExist(err) {
+		err = os.WriteFile(preK, []byte(user.PeerPre), 0644)
+		if err != nil {
+			return err
+		}
+	}
 	wgcom := exec.Command(
 		"wg",
 		"set",
 		"wg0-server",
-		"peer", user.Peer,
+		"peer", user.PeerPub,
+		"preshared-key", preK,
 		"allowed-ips", "192.168.88."+strconv.Itoa(user.IP)+"/32")
 	err = wgcom.Run()
 	if err != nil {
@@ -53,6 +64,7 @@ func (d HighWay) Session(user *dbmng.User, t time.Time) {
 			d.Tg.Send(tele.ChatID(user.ID), "Сессия завершена")
 			d.SessionManager[user.ID] = false
 		}
+		time.Sleep(30 * time.Second)
 	}
 }
 

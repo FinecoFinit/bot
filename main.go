@@ -31,9 +31,9 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("ENV: TOKEN parse error: %w", err))
 	}
-	adminChat, err = strconv.ParseInt(os.Getenv("ADMIN-CHAT"), 10, 64)
+	adminChat, err = strconv.ParseInt(os.Getenv("ADMIN_CHAT"), 10, 64)
 	if err != nil {
-		panic(fmt.Errorf("ENV: ADMINCHAT parse error: %w", err))
+		panic(fmt.Errorf("ENV: ADMIN_CHAT parse error: %w", err))
 	}
 
 	// Locate DB
@@ -141,13 +141,15 @@ func main() {
 			Session:          0,
 			SessionTimeStamp: "never",
 			Peer:             qUser.Peer,
+			PeerPre:          qUser.PeerPre,
+			PeerPub:          qUser.PeerPub,
 			AllowedIPs:       tga[1],
 			IP:               qUser.IP,
 		}
 
 		err = s.RegisterUser(&user)
 		if err != nil {
-			return c.Send(err)
+			return c.Send(err.Error())
 		}
 		return c.Send("Пользователь успешно добавлен")
 	})
@@ -290,6 +292,7 @@ func main() {
 		if totp.Validate(tgt, key.Secret()) {
 			err := wg.WgStartSession(&user)
 			if err != nil {
+				fmt.Println(err)
 				return c.Send("Ошибка создания сессии, обратитесь к администратору")
 			}
 			return c.Send("Сессия создана")
