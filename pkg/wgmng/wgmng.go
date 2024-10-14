@@ -80,7 +80,7 @@ func (d HighWay) WgStopSession(user *dbmng.User) error {
 		"wg",
 		"set",
 		"wg0-server",
-		"peer", user.Peer,
+		"peer", user.PeerPub,
 		"remove")
 	err = wgcom.Run()
 	if err != nil {

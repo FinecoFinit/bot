@@ -2,6 +2,7 @@ package main
 
 import (
 	"bot/pkg/dbmng"
+	"bot/pkg/emailmng"
 	"bot/pkg/wgmng"
 	"bytes"
 	"database/sql"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -24,20 +26,28 @@ func main() {
 		aDBids         []int64
 		sessionManager = make(map[int64]bool)
 		adminChat      int64
+		wgSerIP        = os.Getenv("WG_SER_IP")
+		wgPubKey       = os.Getenv("WG_SER_PUBK")
+		token          = os.Getenv("TOKEN")
+		adminChatID    = os.Getenv("ADMIN_CHAT")
+		dbPath         = os.Getenv("DB")
+		emailUser      = os.Getenv("EMAIL_LOGIN")
+		emailPass      = os.Getenv("EMAIL_PASS")
+		emailAddr      = os.Getenv("EMAIL_ADDR")
 	)
-	pref := tele.Settings{Token: os.Getenv("TOKEN"), Poller: &tele.LongPoller{Timeout: 10 * time.Second}}
+	pref := tele.Settings{Token: token, Poller: &tele.LongPoller{Timeout: 10 * time.Second}}
 
 	tg, err := tele.NewBot(pref)
 	if err != nil {
 		panic(fmt.Errorf("ENV: TOKEN parse error: %w", err))
 	}
-	adminChat, err = strconv.ParseInt(os.Getenv("ADMIN_CHAT"), 10, 64)
+	adminChat, err = strconv.ParseInt(adminChatID, 10, 64)
 	if err != nil {
 		panic(fmt.Errorf("ENV: ADMIN_CHAT parse error: %w", err))
 	}
 
 	// Locate DB
-	location, err := filepath.Abs(os.Getenv("DB"))
+	location, err := filepath.Abs(dbPath)
 	if err != nil {
 		panic(fmt.Errorf("db file: file doesn't exists or corrupted: %w", err))
 	}
@@ -46,8 +56,10 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("db: failed to open db %w", err))
 	}
+
 	s := dbmng.DB{Db: db}
 	wg := wgmng.HighWay{Db: db, Tg: tg, SessionManager: sessionManager, AdminChat: adminChat}
+	em := emailmng.HighWay{WgServerIP: &wgSerIP, WgPublicKey: &wgPubKey, EmailUser: &emailUser, EmailPass: &emailPass, EmailAddr: &emailAddr}
 
 	admins, err := s.GetAdmins()
 	if err != nil {
@@ -99,9 +111,9 @@ func main() {
 				fmt.Println(err)
 				return c.Send("Временная ошибка, сообщите администратору")
 			}
+			reg_msg := "В очередь добавлен новый пользователь:\nID: ``" + strconv.FormatInt(tgu.ID, 10) + "``\nusername: @" + tgu.Username + "\nlogin: " + strings.Replace(tga[0], ".", "\\.", 1) + "\n`\n/accept " + strconv.FormatInt(tgu.ID, 10) + " [AllowedIP]`"
 			_, err = tg.Send(
-				tele.ChatID(1254517365),
-				"В очередь добавлен новый пользователь:\nID: "+strconv.FormatInt(tgu.ID, 10)+"\nusername: @"+tgu.Username+"\nlogin: "+tga[0]+"\n`\n/accept "+strconv.FormatInt(tgu.ID, 10)+" [AllowedIP]`", &tele.SendOptions{
+				tele.ChatID(1254517365), reg_msg, &tele.SendOptions{
 					ParseMode: "MarkdownV2",
 				})
 			if err != nil {
@@ -174,7 +186,7 @@ func main() {
 		if err != nil {
 			return c.Send("2")
 		}
-		ip, err := strconv.Atoi(tga[7])
+		ip, err := strconv.Atoi(tga[8])
 		if err != nil {
 			return c.Send("3")
 		}
@@ -186,8 +198,9 @@ func main() {
 			Session:          0,
 			SessionTimeStamp: "never",
 			Peer:             tga[4],
-			PeerPub:          tga[5],
-			AllowedIPs:       tga[6],
+			PeerPre:          tga[5],
+			PeerPub:          tga[6],
+			AllowedIPs:       tga[7],
 			IP:               ip,
 		}
 		err = s.RegisterUser(&user)
@@ -235,6 +248,10 @@ func main() {
 		}
 		p := &tele.Photo{File: tele.FromReader(&buf)}
 		_, err = tg.Send(tele.ChatID(id), p, &tele.SendOptions{})
+		if err != nil {
+			return c.Send(err.Error())
+		}
+		err = em.SendEmail(&user)
 		if err != nil {
 			return c.Send(err.Error())
 		}
