@@ -17,6 +17,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pquerna/otp/totp"
+	"github.com/wneessen/go-mail"
 
 	tele "gopkg.in/telebot.v3"
 )
@@ -57,9 +58,15 @@ func main() {
 		panic(fmt.Errorf("db: failed to open db %w", err))
 	}
 
+	emailc, err := mail.NewClient(emailAddr, mail.WithPort(587), mail.WithSSL(), mail.WithSMTPAuth(mail.SMTPAuthPlain),
+		mail.WithUsername(emailUser), mail.WithPassword(emailPass))
+	if err != nil {
+		panic(fmt.Errorf("failed to create mail client: %s", err))
+	}
+
 	s := dbmng.DB{Db: db}
 	wg := wgmng.HighWay{Db: db, Tg: tg, SessionManager: sessionManager, AdminChat: adminChat}
-	em := emailmng.HighWay{WgServerIP: &wgSerIP, WgPublicKey: &wgPubKey, EmailUser: &emailUser, EmailPass: &emailPass, EmailAddr: &emailAddr}
+	em := emailmng.HighWay{WgServerIP: &wgSerIP, WgPublicKey: &wgPubKey, EmailClient: emailc, EmailUser: &emailUser, EmailPass: &emailPass, EmailAddr: &emailAddr}
 
 	admins, err := s.GetAdmins()
 	if err != nil {

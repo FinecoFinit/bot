@@ -14,6 +14,7 @@ import (
 type HighWay struct {
 	WgServerIP  *string
 	WgPublicKey *string
+	EmailClient *mail.Client
 	EmailUser   *string
 	EmailPass   *string
 	EmailAddr   *string
@@ -31,12 +32,7 @@ func (h HighWay) SendEmail(user *dbmng.User) error {
 	message.SetBodyString(mail.TypeTextPlain, "Wireguard config file for "+user.UserName)
 	message.AttachReader("wireguard.conf", io.Reader(h.GenConf(user)))
 
-	client, err := mail.NewClient(*h.EmailAddr, mail.WithPort(587), mail.WithSSL(), mail.WithSMTPAuth(mail.SMTPAuthPlain),
-		mail.WithUsername(*h.EmailUser), mail.WithPassword(*h.EmailPass))
-	if err != nil {
-		return fmt.Errorf("failed to create mail client: %s", err)
-	}
-	if err := client.DialAndSend(message); err != nil {
+	if err := h.EmailClient.DialAndSend(message); err != nil {
 		return fmt.Errorf("failed to send mail: %s", err)
 	}
 	return nil
