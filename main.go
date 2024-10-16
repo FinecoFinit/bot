@@ -118,9 +118,12 @@ func main() {
 				fmt.Println(err)
 				return c.Send("Временная ошибка, сообщите администратору")
 			}
-			reg_msg := "В очередь добавлен новый пользователь:\nID: ``" + strconv.FormatInt(tgu.ID, 10) + "``\nusername: @" + tgu.Username + "\nlogin: " + strings.Replace(tga[0], ".", "\\.", 1) + "\n`\n/accept " + strconv.FormatInt(tgu.ID, 10) + " [AllowedIP]`"
 			_, err = tg.Send(
-				tele.ChatID(1254517365), reg_msg, &tele.SendOptions{
+				tele.ChatID(1254517365),
+				"В очередь добавлен новый пользователь:\nID: ``"+strconv.FormatInt(tgu.ID, 10)+
+					"``\nusername: @"+tgu.Username+
+					"\nlogin: "+strings.Replace(tga[0], ".", "\\.", 1)+
+					"\n`\n/accept "+strconv.FormatInt(tgu.ID, 10)+" [AllowedIP]`", &tele.SendOptions{
 					ParseMode: "MarkdownV2",
 				})
 			if err != nil {

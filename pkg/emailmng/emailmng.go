@@ -30,7 +30,10 @@ func (h HighWay) SendEmail(user *dbmng.User) error {
 	}
 	message.Subject("Wireguard config")
 	message.SetBodyString(mail.TypeTextPlain, "Wireguard config file for "+user.UserName)
-	message.AttachReader("wireguard.conf", io.Reader(h.GenConf(user)))
+	err := message.AttachReader("wireguard.conf", io.Reader(h.GenConf(user)))
+	if err != nil {
+		return err
+	}
 
 	if err := h.EmailClient.DialAndSend(message); err != nil {
 		return fmt.Errorf("failed to send mail: %s", err)
