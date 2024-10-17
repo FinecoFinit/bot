@@ -162,7 +162,7 @@ func (d DB) GetUsersIDs(ids *[]int64) error {
 		return fmt.Errorf("db: failed to get user ids: %w", err)
 	}
 	for _, u := range usersIDs {
-		if !(funk.ContainsInt64(*ids, u.ID)) {
+		if !funk.ContainsInt64(*ids, u.ID) {
 			*ids = append(*ids, u.ID)
 		}
 	}
@@ -263,7 +263,7 @@ func (d DB) GetQueueUsersIDs(ids *[]int64) error {
 		return fmt.Errorf("db: failed to get user ids: %w", err)
 	}
 	for _, u := range usersIDs {
-		if !(funk.ContainsInt64(*ids, u.ID)) {
+		if !funk.ContainsInt64(*ids, u.ID) {
 			*ids = append(*ids, u.ID)
 		}
 	}

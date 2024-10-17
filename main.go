@@ -295,28 +295,27 @@ func main() {
 			tgu = c.Sender()
 			tgt = c.Text()
 		)
-		if funk.ContainsInt64(uDBids, tgu.ID) {
-			user, err := s.GetUser(&tgu.ID)
-			if err != nil {
-				fmt.Println(err)
-			}
-			key, err := totp.Generate(totp.GenerateOpts{
-				Issuer:      "test",
-				AccountName: user.UserName,
-				Secret:      []byte(user.TOTPSecret)})
-			if err != nil {
-				fmt.Println(err)
-			}
-			if totp.Validate(tgt, key.Secret()) {
-				err := wg.WgStartSession(&user)
-				if err != nil {
-					fmt.Println(err)
-					return c.Send("Ошибка создания сессии, обратитесь к администратору")
-				}
-				return c.Send("Сессия создана")
-			}
+		if !funk.ContainsInt64(uDBids, tgu.ID) {
+			return c.Send("Error")
 		}
-		return c.Send(tgt)
+		user, err := s.GetUser(&tgu.ID)
+		if err != nil {
+			fmt.Println(fmt.Errorf("validation: failed to get user from db: %w", err))
+		}
+		key, err := totp.Generate(totp.GenerateOpts{
+			Secret: []byte(user.TOTPSecret)})
+		if err != nil {
+			fmt.Println(fmt.Errorf("validation: failed to get user totp key: %w", err))
+		}
+		if !totp.Validate(tgt, key.Secret()) {
+			return c.Send("Неверный код")
+		}
+		err = wg.WgStartSession(&user)
+		if err != nil {
+			fmt.Println(err)
+			return c.Send("Ошибка создания сессии, обратитесь к администратору")
+		}
+		return c.Send("Сессия создана")
 	})
 	tg.Start()
 }
