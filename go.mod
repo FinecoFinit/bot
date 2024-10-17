@@ -10,6 +10,7 @@ require (
 )
 
 require (
+	github.com/thoas/go-funk v0.9.3 // indirect
 	golang.org/x/crypto v0.28.0 // indirect
 	golang.org/x/text v0.19.0 // indirect
 )

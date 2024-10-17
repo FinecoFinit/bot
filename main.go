@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
+	"github.com/thoas/go-funk"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -27,6 +28,8 @@ func main() {
 		aDBids         []int64
 		sessionManager = make(map[int64]bool)
 		adminChat      int64
+		uDBids         []int64
+		qDBids         []int64
 		wgSerIP        = os.Getenv("WG_SER_IP")
 		wgPubKey       = os.Getenv("WG_SER_PUBK")
 		token          = os.Getenv("TOKEN")
@@ -76,61 +79,48 @@ func main() {
 		aDBids = append(aDBids, u.ID)
 	}
 
+	err = s.GetUsersIDs(&uDBids)
+	if err != nil {
+		panic(fmt.Errorf("db: failed to get user ids: %w", err))
+	}
+	err = s.GetQueueUsersIDs(&qDBids)
+	if err != nil {
+		panic(fmt.Errorf("db: failed to get queue ids: %w", err))
+	}
+
 	tg.Handle("/register", func(c tele.Context) error {
 		// Get telegram user info
 		var (
-			tgu       = c.Sender()
-			tga       = c.Args()
-			userDBids []int64
-			qDBids    []int64
+			tgu = c.Sender()
+			tga = c.Args()
 		)
 
 		if len(tga) != 1 {
 			return c.Send("Ошибка введенных параметров")
 		}
 
-		users, err := s.GetUsers()
-		if err != nil {
-			fmt.Println(fmt.Errorf("db: failed to get users ids: %w", err))
-			return c.Send("Временная ошибка, сообщите администратору")
-		}
-		for _, u := range users {
-			userDBids = append(userDBids, u.ID)
-		}
-
-		queue, err := s.GetQueueUsers()
-		if err != nil {
-			fmt.Println(fmt.Errorf("db: failed to get registration queue ids: %w", err))
-			return c.Send("Временная ошибка, сообщите администратору")
-		}
-		for _, u := range queue {
-			qDBids = append(qDBids, u.ID)
-		}
-
-		if slices.Contains(userDBids, tgu.ID) {
+		if slices.Contains(uDBids, tgu.ID) {
 			return c.Send("Пользователь существует")
 		}
 		if slices.Contains(qDBids, tgu.ID) {
 			return c.Send("Регистрация в процессе")
-		} else {
-			err = s.RegisterQueue(tgu.ID, tga[0])
-			if err != nil {
-				fmt.Println(err)
-				return c.Send("Временная ошибка, сообщите администратору")
-			}
-			_, err = tg.Send(
-				tele.ChatID(1254517365),
-				"В очередь добавлен новый пользователь:\nID: ``"+strconv.FormatInt(tgu.ID, 10)+
-					"``\nusername: @"+tgu.Username+
-					"\nlogin: "+strings.Replace(tga[0], ".", "\\.", 1)+
-					"\n`\n/accept "+strconv.FormatInt(tgu.ID, 10)+" [AllowedIP]`", &tele.SendOptions{
-					ParseMode: "MarkdownV2",
-				})
-			if err != nil {
-				return c.Send(err.Error())
-			}
-			return c.Send("Заявка на регистрацию принята")
 		}
+		err = s.RegisterQueue(tgu.ID, tga[0])
+		if err != nil {
+			fmt.Println(err)
+			return c.Send("Временная ошибка, сообщите администратору")
+		}
+		_, err = tg.Send(
+			tele.ChatID(1254517365),
+			"В очередь добавлен новый пользователь:\nID: ``"+strconv.FormatInt(tgu.ID, 10)+
+				"``\nusername: @"+tgu.Username+
+				"\nlogin: "+strings.Replace(tga[0], ".", "\\.", 1)+
+				"\n`\n/accept "+strconv.FormatInt(tgu.ID, 10)+" [AllowedIP]`", &tele.SendOptions{
+				ParseMode: "MarkdownV2"})
+		if err != nil {
+			return c.Send(err.Error())
+		}
+		return c.Send("Заявка на регистрацию принята")
 	})
 
 	tg.Handle("/accept", func(c tele.Context) error {
@@ -305,28 +295,28 @@ func main() {
 			tgu = c.Sender()
 			tgt = c.Text()
 		)
-		user, err := s.GetUser(&tgu.ID)
-		if err != nil {
-			fmt.Println(err)
-		}
-		key, err := totp.Generate(totp.GenerateOpts{
-			Issuer:      "test",
-			AccountName: user.UserName,
-			Secret:      []byte(user.TOTPSecret)})
-		if err != nil {
-			fmt.Println(err)
-		}
-		if totp.Validate(tgt, key.Secret()) {
-			err := wg.WgStartSession(&user)
+		if funk.ContainsInt64(uDBids, tgu.ID) {
+			user, err := s.GetUser(&tgu.ID)
 			if err != nil {
 				fmt.Println(err)
-				return c.Send("Ошибка создания сессии, обратитесь к администратору")
 			}
-			return c.Send("Сессия создана")
+			key, err := totp.Generate(totp.GenerateOpts{
+				Issuer:      "test",
+				AccountName: user.UserName,
+				Secret:      []byte(user.TOTPSecret)})
+			if err != nil {
+				fmt.Println(err)
+			}
+			if totp.Validate(tgt, key.Secret()) {
+				err := wg.WgStartSession(&user)
+				if err != nil {
+					fmt.Println(err)
+					return c.Send("Ошибка создания сессии, обратитесь к администратору")
+				}
+				return c.Send("Сессия создана")
+			}
 		}
-
 		return c.Send(tgt)
 	})
-
 	tg.Start()
 }

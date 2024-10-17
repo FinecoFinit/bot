@@ -3,8 +3,8 @@ package dbmng
 import (
 	"database/sql"
 	"fmt"
-
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/thoas/go-funk"
 )
 
 type User struct {
@@ -156,6 +156,19 @@ func (d DB) GetUser(id *int64) (User, error) {
 	return user, nil
 }
 
+func (d DB) GetUsersIDs(ids *[]int64) error {
+	usersIDs, err := d.GetUsers()
+	if err != nil {
+		return fmt.Errorf("db: failed to get user ids: %w", err)
+	}
+	for _, u := range usersIDs {
+		if !(funk.ContainsInt64(*ids, u.ID)) {
+			*ids = append(*ids, u.ID)
+		}
+	}
+	return nil
+}
+
 func (d DB) GetQueueUsers() ([]QueueUser, error) {
 	rows, err := d.Db.Query("SELECT * FROM registration_queue")
 	if err != nil {
@@ -242,6 +255,19 @@ func (d DB) GetQueueUser(id *int64) (QueueUser, error) {
 	}
 
 	return qUser, nil
+}
+
+func (d DB) GetQueueUsersIDs(ids *[]int64) error {
+	usersIDs, err := d.GetQueueUsers()
+	if err != nil {
+		return fmt.Errorf("db: failed to get user ids: %w", err)
+	}
+	for _, u := range usersIDs {
+		if !(funk.ContainsInt64(*ids, u.ID)) {
+			*ids = append(*ids, u.ID)
+		}
+	}
+	return nil
 }
 
 func (d DB) GetAdmins() ([]Admin, error) {
