@@ -324,7 +324,9 @@ func main() {
 			fmt.Printf("validation: failed to get user from db: %d \n", err)
 		}
 		key, err := totp.Generate(totp.GenerateOpts{
-			Secret: []byte(user.TOTPSecret)})
+			Issuer:      "test",
+			AccountName: user.UserName,
+			Secret:      []byte(user.TOTPSecret)})
 		if err != nil {
 			fmt.Printf("validation: failed to get user totp key: %d \n", err)
 		}
