@@ -45,7 +45,12 @@ func (d DB) GetUsers() ([]User, error) {
 	if err != nil {
 		return nil, fmt.Errorf("db: query failed: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			fmt.Printf("Error closing rows: %v\n", err)
+		}
+	}(rows)
 
 	var users []User
 
@@ -106,7 +111,12 @@ func (d DB) GetUser(id *int64) (User, error) {
 	if err != nil {
 		return user, fmt.Errorf("db: query failed: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			fmt.Printf("Error closing rows: %v\n", err)
+		}
+	}(rows)
 
 	for rows.Next() {
 		var (
@@ -174,7 +184,12 @@ func (d DB) GetQueueUsers() ([]QueueUser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("db: query: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			fmt.Printf("Error closing rows: %v\n", err)
+		}
+	}(rows)
 
 	var qUsers []QueueUser
 
@@ -218,7 +233,12 @@ func (d DB) GetQueueUser(id *int64) (QueueUser, error) {
 	if err != nil {
 		return qUser, fmt.Errorf("db: query: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			fmt.Printf("Error closing rows: %v\n", err)
+		}
+	}(rows)
 
 	for rows.Next() {
 		var (
@@ -275,7 +295,12 @@ func (d DB) GetAdmins() ([]Admin, error) {
 	if err != nil {
 		return nil, fmt.Errorf("db: query: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			fmt.Printf("Error closing rows: %v\n", err)
+		}
+	}(rows)
 
 	var admins []Admin
 

@@ -28,12 +28,14 @@ func main() {
 		aDBids         []int64
 		sessionManager = make(map[int64]bool)
 		adminChat      int64
+		adminLogChat   int64
 		uDBids         []int64
 		qDBids         []int64
 		wgSerIP        = os.Getenv("WG_SER_IP")
 		wgPubKey       = os.Getenv("WG_SER_PUBK")
 		token          = os.Getenv("TOKEN")
 		adminChatID    = os.Getenv("ADMIN_CHAT")
+		adminLogChatID = os.Getenv("ADMIN_LOG_CHAT")
 		dbPath         = os.Getenv("DB")
 		emailUser      = os.Getenv("EMAIL_LOGIN")
 		emailPass      = os.Getenv("EMAIL_PASS")
@@ -49,6 +51,10 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("ENV: ADMIN_CHAT parse error: %w", err))
 	}
+	adminLogChat, err = strconv.ParseInt(adminLogChatID, 10, 64)
+	if err != nil {
+		panic(fmt.Errorf("ENV: ADMIN_CHAT parse error: %w", err))
+	}
 
 	// Locate DB
 	location, err := filepath.Abs(dbPath)
@@ -61,15 +67,15 @@ func main() {
 		panic(fmt.Errorf("db: failed to open db %w", err))
 	}
 
-	emailc, err := mail.NewClient(emailAddr, mail.WithPort(587), mail.WithSSL(), mail.WithSMTPAuth(mail.SMTPAuthPlain),
+	emailClient, err := mail.NewClient(emailAddr, mail.WithPort(587), mail.WithSSL(), mail.WithSMTPAuth(mail.SMTPAuthPlain),
 		mail.WithUsername(emailUser), mail.WithPassword(emailPass))
 	if err != nil {
 		panic(fmt.Errorf("failed to create mail client: %s", err))
 	}
 
 	s := dbmng.DB{Db: db}
-	wg := wgmng.HighWay{Db: db, Tg: tg, SessionManager: sessionManager, AdminChat: adminChat}
-	em := emailmng.HighWay{WgServerIP: &wgSerIP, WgPublicKey: &wgPubKey, EmailClient: emailc, EmailUser: &emailUser, EmailPass: &emailPass, EmailAddr: &emailAddr}
+	wg := wgmng.HighWay{Db: db, Tg: tg, SessionManager: sessionManager, AdminChat: adminChat, AdminLogChat: adminLogChat}
+	em := emailmng.HighWay{WgServerIP: &wgSerIP, WgPublicKey: &wgPubKey, EmailClient: emailClient, EmailUser: &emailUser, EmailPass: &emailPass, EmailAddr: &emailAddr}
 
 	admins, err := s.GetAdmins()
 	if err != nil {
@@ -108,7 +114,7 @@ func main() {
 		err = s.RegisterQueue(tgu.ID, tga[0])
 		if err != nil {
 			fmt.Println(err)
-			return c.Send("Временная ошибка, сообщите администратору")
+			return c.Send("Ошибка, сообщите администратору")
 		}
 		_, err = tg.Send(
 			tele.ChatID(1254517365),
@@ -133,16 +139,16 @@ func main() {
 			return c.Send("Unknown")
 		}
 		if len(tga) != 2 {
-			return c.Send("Ошибка введенных параметров")
+			return c.Send(err.Error())
 		}
 		id, err := strconv.ParseInt(tga[0], 10, 64)
 		if err != nil {
-			return c.Send("Не удалось считать ID")
+			return c.Send(err.Error())
 		}
 
 		qUser, err := s.GetQueueUser(&id)
 		if err != nil {
-			return c.Send(err)
+			return c.Send(err.Error())
 		}
 
 		user := dbmng.User{
@@ -180,15 +186,15 @@ func main() {
 		}
 		id, err := strconv.ParseInt(tga[0], 10, 64)
 		if err != nil {
-			return c.Send("1")
+			return c.Send(err.Error())
 		}
 		enabled, err := strconv.Atoi(tga[2])
 		if err != nil {
-			return c.Send("2")
+			return c.Send(err.Error())
 		}
 		ip, err := strconv.Atoi(tga[8])
 		if err != nil {
-			return c.Send("3")
+			return c.Send(err.Error())
 		}
 		user := dbmng.User{
 			ID:               id,
@@ -205,7 +211,7 @@ func main() {
 		}
 		err = s.RegisterUser(&user)
 		if err != nil {
-			panic(err)
+			return c.Send(err.Error())
 		}
 
 		return c.Send("Пользователь добавлен")
@@ -309,6 +315,9 @@ func main() {
 		}
 		if !totp.Validate(tgt, key.Secret()) {
 			return c.Send("Неверный код")
+		}
+		if sessionManager[tgu.ID] == true {
+			return c.Send("Сессия уже запущена")
 		}
 		err = wg.WgStartSession(&user)
 		if err != nil {

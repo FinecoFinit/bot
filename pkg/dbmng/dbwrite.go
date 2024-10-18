@@ -2,6 +2,7 @@ package dbmng
 
 import (
 	"bytes"
+	"database/sql"
 	"fmt"
 	"os/exec"
 	"slices"
@@ -52,7 +53,12 @@ func (d DB) RegisterQueue(id int64, user string) error {
 	if err != nil {
 		return fmt.Errorf("RegisterQueue: db: failed to query IPs from registration_queue: %w", err)
 	}
-	defer qIProw.Close()
+	defer func(qIProw *sql.Rows) {
+		err := qIProw.Close()
+		if err != nil {
+			fmt.Printf("RegisterQueue: failed to close DB rows: %v", err)
+		}
+	}(qIProw)
 	for qIProw.Next() {
 		var IP string
 		err = qIProw.Scan(&IP)
@@ -66,7 +72,12 @@ func (d DB) RegisterQueue(id int64, user string) error {
 	if err != nil {
 		return fmt.Errorf("func RegisterQueue: db: failed to query IPs from users: %w", err)
 	}
-	defer uIProw.Close()
+	defer func(uIProw *sql.Rows) {
+		err := uIProw.Close()
+		if err != nil {
+			fmt.Printf("RegisterQueue: failed to close DB rows: %v", err)
+		}
+	}(uIProw)
 	for uIProw.Next() {
 		var IP string
 		err = uIProw.Scan(&IP)

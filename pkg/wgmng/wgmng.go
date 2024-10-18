@@ -17,14 +17,15 @@ type HighWay struct {
 	Db             *sql.DB
 	Tg             *tele.Bot
 	SessionManager map[int64]bool
+	AdminLogChat   int64
 	AdminChat      int64
 }
 
-func (d HighWay) WgStartSession(user *dbmng.User) error {
+func (h HighWay) WgStartSession(user *dbmng.User) error {
 	var (
 		preK = "/opt/wg/prekeys/" + strconv.FormatInt(user.ID, 10)
 	)
-	_, err := d.Db.Exec(
+	_, err := h.Db.Exec(
 		"UPDATE users SET Session = $1,SessionTimeStamp = $2 WHERE id = $3",
 		1,
 		time.Now(),
@@ -38,51 +39,65 @@ func (d HighWay) WgStartSession(user *dbmng.User) error {
 			return err
 		}
 	}
-	wgcom := exec.Command(
+	wgCommand := exec.Command(
 		"wg",
 		"set",
 		"wg0-server",
 		"peer", user.PeerPub,
 		"preshared-key", preK,
 		"allowed-ips", "192.168.88."+strconv.Itoa(user.IP)+"/32")
-	err = wgcom.Run()
+	err = wgCommand.Run()
 	if err != nil {
 		return fmt.Errorf("wgmng: failed to start session: %w", err)
 	}
-	d.SessionManager[user.ID] = true
-	go d.Session(user, time.Now())
+	statusMsg, err := h.Tg.Send(tele.ChatID(h.AdminLogChat), "Создана сессия: \n")
+	if err != nil {
+		return fmt.Errorf("tgmng: failed to send status message: %w", err)
+	}
+	h.SessionManager[user.ID] = true
+	go h.Session(user, time.Now(), statusMsg)
 	return nil
 }
 
-func (d HighWay) Session(user *dbmng.User, t time.Time) {
-	for d.SessionManager[user.ID] {
+func (h HighWay) Session(user *dbmng.User, t time.Time, statusMsg *tele.Message) {
+	for h.SessionManager[user.ID] {
+		_, err := h.Tg.Edit(statusMsg, "")
+		if err != nil {
+			fmt.Printf("tg: failed to edit message: %d, %v", statusMsg.ID, err)
+		}
 		if time.Now().Compare(t.Add(time.Hour*11)) == +1 {
-			err := d.WgStopSession(user)
+			err := h.WgStopSession(user)
 			if err != nil {
-				d.Tg.Send(tele.ChatID(d.AdminChat), err)
+				_, err = h.Tg.Send(tele.ChatID(h.AdminChat), err.Error())
+				if err != nil {
+					fmt.Printf("tg: failed to stop session %d: %v", user.ID, err)
+				}
 			}
-			d.Tg.Send(tele.ChatID(user.ID), "Сессия завершена")
-			d.SessionManager[user.ID] = false
+			_, err = h.Tg.Send(tele.ChatID(user.ID), "Сессия завершена")
+			if err != nil {
+				fmt.Printf("tg: failed to send message %d: %v", user.ID, err)
+			}
+			h.SessionManager[user.ID] = false
 		}
 		time.Sleep(30 * time.Second)
 	}
 }
 
-func (d HighWay) WgStopSession(user *dbmng.User) error {
-	_, err := d.Db.Exec(
+func (h HighWay) WgStopSession(user *dbmng.User) error {
+	_, err := h.Db.Exec(
 		"UPDATE users SET Session = $1 WHERE id = $2",
 		0,
 		user.ID)
 	if err != nil {
 		return fmt.Errorf("db: failed to set stop session: %w", err)
 	}
-	wgcom := exec.Command(
+	wgCommand := exec.Command(
 		"wg",
 		"set",
 		"wg0-server",
 		"peer", user.PeerPub,
 		"remove")
-	err = wgcom.Run()
+	err = wgCommand.Run()
 	if err != nil {
 		return fmt.Errorf("wgmng: failed to stop session: %w", err)
 	}
