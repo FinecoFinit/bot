@@ -306,12 +306,12 @@ func main() {
 		}
 		user, err := s.GetUser(&tgu.ID)
 		if err != nil {
-			fmt.Println(fmt.Errorf("validation: failed to get user from db: %w", err))
+			fmt.Printf("validation: failed to get user from db: %d \n", err)
 		}
 		key, err := totp.Generate(totp.GenerateOpts{
 			Secret: []byte(user.TOTPSecret)})
 		if err != nil {
-			fmt.Println(fmt.Errorf("validation: failed to get user totp key: %w", err))
+			fmt.Printf("validation: failed to get user totp key: %d \n", err)
 		}
 		if !totp.Validate(tgt, key.Secret()) {
 			return c.Send("Неверный код")
