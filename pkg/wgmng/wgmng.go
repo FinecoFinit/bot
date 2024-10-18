@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"strconv"
 	"time"
 
@@ -19,12 +20,14 @@ type HighWay struct {
 	SessionManager map[int64]bool
 	AdminLogChat   int64
 	AdminChat      int64
+	WgPreKeysDir   string
 }
 
 func (h HighWay) WgStartSession(user *dbmng.User) error {
 	var (
-		preK = "/opt/wg/prekeys/" + strconv.FormatInt(user.ID, 10)
+		preK = path.Join(h.WgPreKeysDir, strconv.FormatInt(user.ID, 10))
 	)
+
 	_, err := h.Db.Exec(
 		"UPDATE users SET Session = $1,SessionTimeStamp = $2 WHERE id = $3",
 		1,
@@ -61,21 +64,21 @@ func (h HighWay) WgStartSession(user *dbmng.User) error {
 
 func (h HighWay) Session(user *dbmng.User, t time.Time, statusMsg *tele.Message) {
 	for h.SessionManager[user.ID] {
-		_, err := h.Tg.Edit(statusMsg, "")
+		_, err := h.Tg.Edit(statusMsg, "Status")
 		if err != nil {
-			fmt.Printf("tg: failed to edit message: %d, %v", statusMsg.ID, err)
+			fmt.Printf("tg: failed to edit message: %d, %v \n", statusMsg.ID, err)
 		}
 		if time.Now().Compare(t.Add(time.Hour*11)) == +1 {
 			err := h.WgStopSession(user)
 			if err != nil {
 				_, err = h.Tg.Send(tele.ChatID(h.AdminChat), err.Error())
 				if err != nil {
-					fmt.Printf("tg: failed to stop session %d: %v", user.ID, err)
+					fmt.Printf("tg: failed to stop session %d: %v \n", user.ID, err)
 				}
 			}
 			_, err = h.Tg.Send(tele.ChatID(user.ID), "Сессия завершена")
 			if err != nil {
-				fmt.Printf("tg: failed to send message %d: %v", user.ID, err)
+				fmt.Printf("tg: failed to send message %d: %v \n", user.ID, err)
 			}
 			h.SessionManager[user.ID] = false
 		}

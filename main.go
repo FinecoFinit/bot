@@ -33,6 +33,7 @@ func main() {
 		sessionManager = make(map[int64]bool)
 		wgSerIP        = os.Getenv("WG_SER_IP")
 		wgPubKey       = os.Getenv("WG_SER_PUBK")
+		wgPreKeysDir   = os.Getenv("WG_PREKEYS_DIR")
 		token          = os.Getenv("TOKEN")
 		adminChatID    = os.Getenv("ADMIN_CHAT")
 		adminLogChatID = os.Getenv("ADMIN_LOG_CHAT")
@@ -74,7 +75,7 @@ func main() {
 	}
 
 	s := dbmng.DB{Db: db}
-	wg := wgmng.HighWay{Db: db, Tg: tg, SessionManager: sessionManager, AdminChat: adminChat, AdminLogChat: adminLogChat}
+	wg := wgmng.HighWay{Db: db, Tg: tg, SessionManager: sessionManager, AdminChat: adminChat, AdminLogChat: adminLogChat, WgPreKeysDir: wgPreKeysDir}
 	em := emailmng.HighWay{WgServerIP: &wgSerIP, WgPublicKey: &wgPubKey, EmailClient: emailClient, EmailUser: &emailUser, EmailPass: &emailPass, EmailAddr: &emailAddr}
 
 	admins, err := s.GetAdmins()
