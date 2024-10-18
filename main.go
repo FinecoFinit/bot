@@ -26,11 +26,11 @@ import (
 func main() {
 	var (
 		aDBids         []int64
-		sessionManager = make(map[int64]bool)
-		adminChat      int64
-		adminLogChat   int64
 		uDBids         []int64
 		qDBids         []int64
+		adminChat      int64
+		adminLogChat   int64
+		sessionManager = make(map[int64]bool)
 		wgSerIP        = os.Getenv("WG_SER_IP")
 		wgPubKey       = os.Getenv("WG_SER_PUBK")
 		token          = os.Getenv("TOKEN")
@@ -53,7 +53,7 @@ func main() {
 	}
 	adminLogChat, err = strconv.ParseInt(adminLogChatID, 10, 64)
 	if err != nil {
-		panic(fmt.Errorf("ENV: ADMIN_CHAT parse error: %w", err))
+		panic(fmt.Errorf("ENV: ADMIN_LOG_CHAT parse error: %w", err))
 	}
 
 	// Locate DB
@@ -126,6 +126,10 @@ func main() {
 		if err != nil {
 			return c.Send(err.Error())
 		}
+		err = s.GetQueueUsersIDs(&qDBids)
+		if err != nil {
+			fmt.Printf("db: failed to get queue ids: %d \n", err)
+		}
 		return c.Send("Заявка на регистрацию принята")
 	})
 
@@ -168,6 +172,14 @@ func main() {
 		err = s.RegisterUser(&user)
 		if err != nil {
 			return c.Send(err.Error())
+		}
+		err = s.GetUsersIDs(&uDBids)
+		if err != nil {
+			fmt.Printf("db: failed to get user ids: %d \n", err)
+		}
+		err = s.GetQueueUsersIDs(&qDBids)
+		if err != nil {
+			fmt.Printf("db: failed to get queue ids: %d \n", err)
 		}
 		return c.Send("Пользователь успешно добавлен")
 	})
@@ -213,7 +225,10 @@ func main() {
 		if err != nil {
 			return c.Send(err.Error())
 		}
-
+		err = s.GetUsersIDs(&uDBids)
+		if err != nil {
+			return c.Send(err.Error())
+		}
 		return c.Send("Пользователь добавлен")
 	})
 
