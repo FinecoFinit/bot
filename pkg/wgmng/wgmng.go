@@ -15,12 +15,13 @@ import (
 )
 
 type HighWay struct {
-	Db             *sql.DB
-	Tg             *tele.Bot
-	SessionManager map[int64]bool
-	AdminLogChat   int64
-	AdminChat      int64
-	WgPreKeysDir   string
+	Db                 *sql.DB
+	Tg                 *tele.Bot
+	SessionManager     map[int64]bool
+	AdminChat          int64
+	AdminLogChat       int64
+	AdminLogChatThread int
+	WgPreKeysDir       string
 }
 
 func (h HighWay) WgStartSession(user *dbmng.User) error {
@@ -53,7 +54,7 @@ func (h HighWay) WgStartSession(user *dbmng.User) error {
 	if err != nil {
 		return fmt.Errorf("wgmng: failed to start session: %w", err)
 	}
-	statusMsg, err := h.Tg.Send(tele.ChatID(h.AdminLogChat), "Создана сессия: \n")
+	statusMsg, err := h.Tg.Send(tele.ChatID(h.AdminLogChat), "Создана сессия для: "+user.UserName, &tele.SendOptions{ThreadID: h.AdminLogChatThread})
 	if err != nil {
 		return fmt.Errorf("tgmng: failed to send status message: %w", err)
 	}

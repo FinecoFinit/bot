@@ -25,22 +25,23 @@ import (
 
 func main() {
 	var (
-		aDBids         []int64
-		uDBids         []int64
-		qDBids         []int64
-		adminChat      int64
-		adminLogChat   int64
-		sessionManager = make(map[int64]bool)
-		wgSerIP        = os.Getenv("WG_SER_IP")
-		wgPubKey       = os.Getenv("WG_SER_PUBK")
-		wgPreKeysDir   = os.Getenv("WG_PREKEYS_DIR")
-		token          = os.Getenv("TOKEN")
-		adminChatID    = os.Getenv("ADMIN_CHAT")
-		adminLogChatID = os.Getenv("ADMIN_LOG_CHAT")
-		dbPath         = os.Getenv("DB")
-		emailUser      = os.Getenv("EMAIL_LOGIN")
-		emailPass      = os.Getenv("EMAIL_PASS")
-		emailAddr      = os.Getenv("EMAIL_ADDR")
+		aDBids               []int64
+		uDBids               []int64
+		qDBids               []int64
+		adminChat            int64
+		adminLogChat         int64
+		sessionManager       = make(map[int64]bool)
+		wgSerIP              = os.Getenv("WG_SER_IP")
+		wgPubKey             = os.Getenv("WG_SER_PUBK")
+		wgPreKeysDir         = os.Getenv("WG_PREKEYS_DIR")
+		token                = os.Getenv("TOKEN")
+		adminChatID          = os.Getenv("ADMIN_CHAT")
+		adminLogChatID       = os.Getenv("ADMIN_LOG_CHAT")
+		adminLogChatThreadID = os.Getenv("ADMIN_LOG_CHAT_THREAD")
+		dbPath               = os.Getenv("DB")
+		emailUser            = os.Getenv("EMAIL_LOGIN")
+		emailPass            = os.Getenv("EMAIL_PASS")
+		emailAddr            = os.Getenv("EMAIL_ADDR")
 	)
 	pref := tele.Settings{Token: token, Poller: &tele.LongPoller{Timeout: 10 * time.Second}}
 
@@ -55,6 +56,10 @@ func main() {
 	adminLogChat, err = strconv.ParseInt(adminLogChatID, 10, 64)
 	if err != nil {
 		panic(fmt.Errorf("ENV: ADMIN_LOG_CHAT parse error: %w", err))
+	}
+	adminLogChatThread, err := strconv.Atoi(adminLogChatThreadID)
+	if err != nil {
+		panic(fmt.Errorf("ENV: ADMIN_LOG_CHAT_THREAD parse error: %w", err))
 	}
 
 	// Locate DB
@@ -75,7 +80,7 @@ func main() {
 	}
 
 	s := dbmng.DB{Db: db}
-	wg := wgmng.HighWay{Db: db, Tg: tg, SessionManager: sessionManager, AdminChat: adminChat, AdminLogChat: adminLogChat, WgPreKeysDir: wgPreKeysDir}
+	wg := wgmng.HighWay{Db: db, Tg: tg, SessionManager: sessionManager, AdminChat: adminChat, AdminLogChat: adminLogChat, AdminLogChatThread: adminLogChatThread, WgPreKeysDir: wgPreKeysDir}
 	em := emailmng.HighWay{WgServerIP: &wgSerIP, WgPublicKey: &wgPubKey, EmailClient: emailClient, EmailUser: &emailUser, EmailPass: &emailPass, EmailAddr: &emailAddr}
 
 	admins, err := s.GetAdmins()
@@ -118,11 +123,12 @@ func main() {
 			return c.Send("Ошибка, сообщите администратору")
 		}
 		_, err = tg.Send(
-			tele.ChatID(1254517365),
+			tele.ChatID(adminLogChat),
 			"В очередь добавлен новый пользователь:\nID: ``"+strconv.FormatInt(tgu.ID, 10)+
 				"``\nusername: @"+tgu.Username+
 				"\nlogin: "+strings.Replace(tga[0], ".", "\\.", 1)+
 				"\n`\n/accept "+strconv.FormatInt(tgu.ID, 10)+" [AllowedIP]`", &tele.SendOptions{
+				ThreadID:  adminLogChatThread,
 				ParseMode: "MarkdownV2"})
 		if err != nil {
 			return c.Send(err.Error())
@@ -269,7 +275,7 @@ func main() {
 			return c.Send(err.Error())
 		}
 		p := &tele.Photo{File: tele.FromReader(&buf)}
-		_, err = tg.Send(tele.ChatID(id), p, &tele.SendOptions{})
+		_, err = tg.Send(tele.ChatID(id), p, &tele.SendOptions{Protected: true})
 		if err != nil {
 			return c.Send(err.Error())
 		}
@@ -303,6 +309,17 @@ func main() {
 		)
 		if !slices.Contains(aDBids, tgu.ID) {
 			return c.Send("Unknown")
+		}
+		if sessionManager[tgu.ID] {
+			sessionManager[tgu.ID] = false
+		}
+		user, err := s.GetUser(&tgu.ID)
+		if err != nil {
+			return c.Send(err.Error())
+		}
+		err = wg.WgStopSession(&user)
+		if err != nil {
+			return c.Send(err.Error())
 		}
 		err = s.DisableUser(&tga[0])
 		if err != nil {
