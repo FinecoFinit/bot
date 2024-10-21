@@ -28,14 +28,12 @@ func main() {
 		aDBids               []int64
 		uDBids               []int64
 		qDBids               []int64
-		adminChat            int64
 		adminLogChat         int64
 		sessionManager       = make(map[int64]bool)
 		wgSerIP              = os.Getenv("WG_SER_IP")
 		wgPubKey             = os.Getenv("WG_SER_PUBK")
 		wgPreKeysDir         = os.Getenv("WG_PREKEYS_DIR")
 		token                = os.Getenv("TOKEN")
-		adminChatID          = os.Getenv("ADMIN_CHAT")
 		adminLogChatID       = os.Getenv("ADMIN_LOG_CHAT")
 		adminLogChatThreadID = os.Getenv("ADMIN_LOG_CHAT_THREAD")
 		dbPath               = os.Getenv("DB")
@@ -48,10 +46,6 @@ func main() {
 	tg, err := tele.NewBot(pref)
 	if err != nil {
 		panic(fmt.Errorf("ENV: TOKEN parse error: %w", err))
-	}
-	adminChat, err = strconv.ParseInt(adminChatID, 10, 64)
-	if err != nil {
-		panic(fmt.Errorf("ENV: ADMIN_CHAT parse error: %w", err))
 	}
 	adminLogChat, err = strconv.ParseInt(adminLogChatID, 10, 64)
 	if err != nil {
@@ -80,7 +74,7 @@ func main() {
 	}
 
 	s := dbmng.DB{Db: db}
-	wg := wgmng.HighWay{Db: db, Tg: tg, SessionManager: sessionManager, AdminChat: adminChat, AdminLogChat: adminLogChat, AdminLogChatThread: adminLogChatThread, WgPreKeysDir: wgPreKeysDir}
+	wg := wgmng.HighWay{Db: db, Tg: tg, SessionManager: sessionManager, AdminLogChat: adminLogChat, AdminLogChatThread: adminLogChatThread, WgPreKeysDir: wgPreKeysDir}
 	em := emailmng.HighWay{WgServerIP: &wgSerIP, WgPublicKey: &wgPubKey, EmailClient: emailClient, EmailUser: &emailUser, EmailPass: &emailPass, EmailAddr: &emailAddr}
 
 	admins, err := s.GetAdmins()

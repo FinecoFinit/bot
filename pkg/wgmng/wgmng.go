@@ -18,7 +18,6 @@ type HighWay struct {
 	Db                 *sql.DB
 	Tg                 *tele.Bot
 	SessionManager     map[int64]bool
-	AdminChat          int64
 	AdminLogChat       int64
 	AdminLogChatThread int
 	WgPreKeysDir       string
@@ -72,7 +71,7 @@ func (h HighWay) Session(user *dbmng.User, t time.Time, statusMsg *tele.Message)
 		if time.Now().Compare(t.Add(time.Hour*11)) == +1 {
 			err := h.WgStopSession(user)
 			if err != nil {
-				_, err = h.Tg.Send(tele.ChatID(h.AdminChat), err.Error())
+				_, err = h.Tg.Send(tele.ChatID(h.AdminLogChat), err.Error(), &tele.SendOptions{ReplyTo: statusMsg, ThreadID: h.AdminLogChatThread})
 				if err != nil {
 					fmt.Printf("tg: failed to stop session %d: %v \n", user.ID, err)
 				}
