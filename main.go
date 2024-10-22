@@ -30,6 +30,7 @@ func main() {
 		qDBids               []int64
 		adminLogChat         int64
 		sessionManager       = make(map[int64]bool)
+		messageManager       = make(map[int64]*tele.Message)
 		wgSerIP              = os.Getenv("WG_SER_IP")
 		wgPubKey             = os.Getenv("WG_SER_PUBK")
 		wgPreKeysDir         = os.Getenv("WG_PREKEYS_DIR")
@@ -41,16 +42,18 @@ func main() {
 		emailPass            = os.Getenv("EMAIL_PASS")
 		emailAddr            = os.Getenv("EMAIL_ADDR")
 	)
-	pref := tele.Settings{Token: token, Poller: &tele.LongPoller{Timeout: 10 * time.Second}}
 
+	pref := tele.Settings{Token: token, Poller: &tele.LongPoller{Timeout: 10 * time.Second}}
 	tg, err := tele.NewBot(pref)
 	if err != nil {
 		panic(fmt.Errorf("ENV: TOKEN parse error: %w", err))
 	}
+
 	adminLogChat, err = strconv.ParseInt(adminLogChatID, 10, 64)
 	if err != nil {
 		panic(fmt.Errorf("ENV: ADMIN_LOG_CHAT parse error: %w", err))
 	}
+
 	adminLogChatThread, err := strconv.Atoi(adminLogChatThreadID)
 	if err != nil {
 		panic(fmt.Errorf("ENV: ADMIN_LOG_CHAT_THREAD parse error: %w", err))
@@ -73,9 +76,23 @@ func main() {
 		panic(fmt.Errorf("failed to create mail client: %s", err))
 	}
 
-	s := dbmng.DB{Db: db}
-	wg := wgmng.HighWay{Db: db, Tg: tg, SessionManager: sessionManager, AdminLogChat: adminLogChat, AdminLogChatThread: adminLogChatThread, WgPreKeysDir: wgPreKeysDir}
-	em := emailmng.HighWay{WgServerIP: &wgSerIP, WgPublicKey: &wgPubKey, EmailClient: emailClient, EmailUser: &emailUser, EmailPass: &emailPass, EmailAddr: &emailAddr}
+	s := dbmng.DB{
+		Db: db}
+	wg := wgmng.HighWay{
+		Db:                 db,
+		Tg:                 tg,
+		SessionManager:     sessionManager,
+		MessageManager:     messageManager,
+		AdminLogChat:       adminLogChat,
+		AdminLogChatThread: adminLogChatThread,
+		WgPreKeysDir:       wgPreKeysDir}
+	em := emailmng.HighWay{
+		WgServerIP:  &wgSerIP,
+		WgPublicKey: &wgPubKey,
+		EmailClient: emailClient,
+		EmailUser:   &emailUser,
+		EmailPass:   &emailPass,
+		EmailAddr:   &emailAddr}
 
 	admins, err := s.GetAdmins()
 	if err != nil {
@@ -311,7 +328,7 @@ func main() {
 		if err != nil {
 			return c.Send(err.Error())
 		}
-		err = wg.WgStopSession(&user)
+		err = wg.WgStopSession(&user, messageManager[user.ID])
 		if err != nil {
 			return c.Send(err.Error())
 		}
