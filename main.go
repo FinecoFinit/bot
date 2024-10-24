@@ -142,7 +142,7 @@ func main() {
 				ThreadID:  adminLogChatThread,
 				ParseMode: "MarkdownV2"})
 		if err != nil {
-			return c.Send(err.Error())
+			fmt.Println(err)
 		}
 		err = s.GetQueueUsersIDs(&qDBids)
 		if err != nil {
@@ -338,6 +338,21 @@ func main() {
 			return c.Send("Не удалось деактивировать пользователя")
 		}
 		return c.Send("Пользователь " + tga[0] + " деактивирован")
+	})
+
+	tg.Handle("/get", func(c tele.Context) error {
+		var (
+			tgu = c.Sender()
+			tga = c.Args()
+		)
+		if !slices.Contains(aDBids, tgu.ID) {
+			return c.Send("Unknown")
+		}
+		user, err := s.GetUserName(&tga[0])
+		if err != nil {
+			return c.Send(err.Error())
+		}
+		return c.Send(strconv.FormatInt(user.ID, 10) + " | " + user.UserName + " | " + "192.168.88." + strconv.Itoa(user.IP))
 	})
 
 	tg.Handle(tele.OnText, func(c tele.Context) error {

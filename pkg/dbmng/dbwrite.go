@@ -24,28 +24,27 @@ func (d DB) RegisterQueue(id int64, user string) error {
 		Issuer:      "test",
 		AccountName: user,
 	})
-
 	if err != nil {
-		return fmt.Errorf("func RegisterQueue: failed to get generate totp key: %w", err)
+		return fmt.Errorf("RegisterQueue: failed to get generate totp key: %w", err)
 	}
 
 	wgCom := exec.Command("wg", "genkey")
 	wgKey, err := wgCom.Output()
 	if err != nil {
-		return fmt.Errorf("func RegisterQueue: failed to get generate peer key: %w", err)
+		return fmt.Errorf("RegisterQueue: failed to get generate peer key: %w", err)
 	}
 
 	wgCom = exec.Command("wg", "genpsk")
 	wgKeyPre, err := wgCom.Output()
 	if err != nil {
-		return fmt.Errorf("func RegisterQueue: failed to get generate peer key: %w", err)
+		return fmt.Errorf("RegisterQueue: failed to get generate peer preshared key: %w", err)
 	}
 
 	wgCom = exec.Command("wg", "pubkey")
 	wgCom.Stdin = bytes.NewBuffer(wgKey)
 	wgKeyPub, err := wgCom.Output()
 	if err != nil {
-		return fmt.Errorf("func RegisterQueue: failed to get generate pub key: %w", err)
+		return fmt.Errorf("RegisterQueue: failed to get generate pub key: %w", err)
 	}
 
 	// Calculate IP address

@@ -166,6 +166,69 @@ func (d DB) GetUser(id *int64) (User, error) {
 	return user, nil
 }
 
+func (d DB) GetUserName(u *string) (User, error) {
+	var user User
+	rows, err := d.Db.Query(
+		"SELECT * FROM users WHERE UserName like $1",
+		"%"+*u+"%")
+	if err != nil {
+		return user, fmt.Errorf("db: query failed: %w", err)
+	}
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			fmt.Printf("Error closing rows: %v\n", err)
+		}
+	}(rows)
+
+	for rows.Next() {
+		var (
+			ID               int64
+			UserName         string
+			Enabled          int
+			TOTPSecret       string
+			Session          int
+			SessionTimeStamp string
+			Peer             string
+			PeerPre          string
+			PeerPub          string
+			AllowedIPs       string
+			IP               int
+		)
+		err = rows.Scan(
+			&ID,
+			&UserName,
+			&Enabled,
+			&TOTPSecret,
+			&Session,
+			&SessionTimeStamp,
+			&Peer,
+			&PeerPre,
+			&PeerPub,
+			&AllowedIPs,
+			&IP)
+		if err != nil {
+			return user, fmt.Errorf("db: scan row: %w", err)
+		}
+		user = User{
+			ID:               ID,
+			UserName:         UserName,
+			Enabled:          Enabled,
+			TOTPSecret:       TOTPSecret,
+			Session:          Session,
+			SessionTimeStamp: SessionTimeStamp,
+			Peer:             Peer,
+			PeerPre:          PeerPre,
+			PeerPub:          PeerPub,
+			AllowedIPs:       AllowedIPs,
+			IP:               IP}
+	}
+	if err = rows.Err(); err != nil {
+		return user, fmt.Errorf("db: rows: %w", err)
+	}
+	return user, nil
+}
+
 func (d DB) GetUsersIDs(ids *[]int64) error {
 	usersIDs, err := d.GetUsers()
 	if err != nil {
