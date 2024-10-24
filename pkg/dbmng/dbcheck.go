@@ -343,7 +343,7 @@ func (d DB) GetQueueUser(id *int64) (QueueUser, error) {
 func (d DB) GetQueueUsersIDs(ids *[]int64) error {
 	usersIDs, err := d.GetQueueUsers()
 	if err != nil {
-		return fmt.Errorf("db: failed to get user ids: %w", err)
+		return fmt.Errorf("db: failed to get queue users ids: %w", err)
 	}
 	for _, u := range usersIDs {
 		if !funk.ContainsInt64(*ids, u.ID) {
@@ -383,4 +383,17 @@ func (d DB) GetAdmins() ([]Admin, error) {
 	}
 
 	return admins, nil
+}
+
+func (d DB) GetAdminsIDs(ids *[]int64) error {
+	adminsIDs, err := d.GetQueueUsers()
+	if err != nil {
+		return fmt.Errorf("db: failed to get admins ids: %w", err)
+	}
+	for _, a := range adminsIDs {
+		if !funk.ContainsInt64(*ids, a.ID) {
+			*ids = append(*ids, a.ID)
+		}
+	}
+	return nil
 }

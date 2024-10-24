@@ -135,7 +135,7 @@ func (d DB) RegisterUser(user *User) error {
 	return nil
 }
 
-func (d DB) EnableUser(id *string) error {
+func (d DB) EnableUser(id *int64) error {
 	_, err := d.Db.Exec(
 		"UPDATE users SET Enabled = $1 WHERE ID = $2",
 		1,
@@ -146,7 +146,7 @@ func (d DB) EnableUser(id *string) error {
 	return nil
 }
 
-func (d DB) DisableUser(id *string) error {
+func (d DB) DisableUser(id *int64) error {
 	_, err := d.Db.Exec(
 		"UPDATE users SET Enabled = $1 WHERE ID = $2",
 		0,
