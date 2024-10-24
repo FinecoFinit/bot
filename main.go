@@ -234,7 +234,7 @@ func main() {
 		)
 
 		if !slices.Contains(aDBids, tgu.ID) {
-			logger.Error().Msg("accept: non admin user tried to use /accept")
+			logger.Error().Msg("adduser: non admin user tried to use /adduser" + strconv.FormatInt(tgu.ID, 10))
 			return c.Send("Unknown")
 		}
 
@@ -291,7 +291,7 @@ func main() {
 		)
 
 		if !slices.Contains(aDBids, tgu.ID) {
-			logger.Error().Msg("accept: non admin user tried to use /accept")
+			logger.Error().Msg("sendcreds: non admin user tried to use /sendcreds" + strconv.FormatInt(tgu.ID, 10))
 			return c.Send("Unknown")
 		}
 
@@ -354,7 +354,7 @@ func main() {
 			tga = c.Args()
 		)
 		if !slices.Contains(aDBids, tgu.ID) {
-			logger.Error().Msg("accept: non admin user tried to use /accept")
+			logger.Error().Msg("enable: non admin user tried to use /enable" + strconv.FormatInt(tgu.ID, 10))
 			return c.Send("Unknown")
 		}
 
@@ -380,7 +380,7 @@ func main() {
 		)
 
 		if !slices.Contains(aDBids, tgu.ID) {
-			logger.Error().Msg("accept: non admin user tried to use /accept")
+			logger.Error().Msg("disable: non admin user tried to use /disable" + strconv.FormatInt(tgu.ID, 10))
 			return c.Send("Unknown")
 		}
 
@@ -416,7 +416,7 @@ func main() {
 		)
 
 		if !slices.Contains(aDBids, tgu.ID) {
-			logger.Error().Msg("accept: non admin user tried to use /accept")
+			logger.Error().Msg("get: non admin user tried to use /get" + strconv.FormatInt(tgu.ID, 10))
 			return c.Send("Unknown")
 		}
 
@@ -476,6 +476,8 @@ func main() {
 			logger.Error().Err(err).Msg("validation")
 			return c.Send("Ошибка создания сессии, обратитесь к администратору")
 		}
+
+		logger.Info().Msg("session started for: " + user.UserName)
 
 		return c.Send("Сессия создана")
 	})
