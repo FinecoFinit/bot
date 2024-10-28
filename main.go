@@ -4,12 +4,10 @@ import (
 	"bot/pkg/dbmng"
 	"bot/pkg/emailmng"
 	"bot/pkg/wgmng"
-	"bytes"
 	"database/sql"
 	"fmt"
 	"github.com/rs/zerolog"
 	"github.com/thoas/go-funk"
-	"image/png"
 	"os"
 	"path/filepath"
 	"slices"
@@ -288,7 +286,6 @@ func main() {
 		var (
 			tgu = c.Sender()
 			tga = c.Args()
-			buf bytes.Buffer
 		)
 
 		if !slices.Contains(aDBids, tgu.ID) {
@@ -311,35 +308,6 @@ func main() {
 			return c.Send(err.Error())
 		}
 
-		key, err := totp.Generate(totp.GenerateOpts{
-			Issuer:      "test",
-			AccountName: user.UserName,
-			Secret:      []byte(user.TOTPSecret)})
-		if err != nil {
-			logger.Error().Err(err).Msg("sendcreds")
-			return c.Send(err.Error())
-		}
-
-		img, err := key.Image(256, 256)
-		if err != nil {
-			logger.Error().Err(err).Msg("sendcreds")
-			return c.Send(err.Error())
-		}
-
-		err = png.Encode(&buf, img)
-		if err != nil {
-			logger.Error().Err(err).Msg("sendcreds")
-			return c.Send(err.Error())
-		}
-
-		p := &tele.Photo{File: tele.FromReader(&buf)}
-
-		_, err = tg.Send(tele.ChatID(id), p, &tele.SendOptions{Protected: true})
-		if err != nil {
-			logger.Error().Err(err).Msg("sendcreds")
-			return c.Send(err.Error())
-		}
-
 		err = em.SendEmail(&user)
 		if err != nil {
 			logger.Error().Err(err).Msg("sendcreds")
@@ -355,7 +323,7 @@ func main() {
 			tga = c.Args()
 		)
 		if !slices.Contains(aDBids, tgu.ID) {
-			logger.Error().Msg("enable: non admin user tried to use /enable" + strconv.FormatInt(tgu.ID, 10))
+			logger.Error().Msg("enable: non admin user tried to use /enable " + strconv.FormatInt(tgu.ID, 10))
 			return c.Send("Unknown")
 		}
 

@@ -4,6 +4,8 @@ import (
 	"bot/pkg/dbmng"
 	"bytes"
 	"fmt"
+	"github.com/pquerna/otp/totp"
+	"image/png"
 	"io"
 	"strconv"
 
@@ -34,6 +36,14 @@ func (h HighWay) SendEmail(user *dbmng.User) error {
 	if err != nil {
 		return err
 	}
+	img, err := h.GenKeyImage(user)
+	if err != nil {
+		return err
+	}
+	err = message.AttachReader("totp.png", img)
+	if err != nil {
+		return err
+	}
 
 	if err := h.EmailClient.DialAndSend(message); err != nil {
 		return fmt.Errorf("failed to send mail: %s", err)
@@ -53,4 +63,27 @@ func (h HighWay) GenConf(user *dbmng.User) *bytes.Buffer {
 			"Endpoint = " + *h.WgServerIP + "\r\n" +
 			"PersistentKeepalive = 15")
 	return buf
+}
+
+func (h HighWay) GenKeyImage(user *dbmng.User) (*bytes.Buffer, error) {
+	key, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      "test",
+		AccountName: user.UserName,
+		Secret:      []byte(user.TOTPSecret)})
+	if err != nil {
+		return nil, err
+	}
+
+	img, err := key.Image(256, 256)
+	if err != nil {
+		return nil, err
+	}
+
+	buf := new(bytes.Buffer)
+	err = png.Encode(buf, img)
+	if err != nil {
+		return nil, err
+	}
+
+	return buf, err
 }

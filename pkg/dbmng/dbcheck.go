@@ -386,7 +386,7 @@ func (d DB) GetAdmins() ([]Admin, error) {
 }
 
 func (d DB) GetAdminsIDs(ids *[]int64) error {
-	adminsIDs, err := d.GetQueueUsers()
+	adminsIDs, err := d.GetAdmins()
 	if err != nil {
 		return fmt.Errorf("db: failed to get admins ids: %w", err)
 	}
