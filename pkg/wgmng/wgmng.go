@@ -76,7 +76,7 @@ func (h HighWay) Session(user *dbmng.User, t time.Time, statusMsg *tele.Message)
 		if slices.IndexFunc(strings.Split(string(out), "\r\n"), func(c string) bool { return strings.Contains(c, user.PeerPub) }) == -1 {
 			err := h.WgStopSession(user, statusMsg)
 			if err != nil {
-				h.Logger.Err(err).Msg("wg: failed to stop session")
+				h.Logger.Err(err).Msg("wg: failed to find wg peer")
 			}
 			h.SessionManager[user.ID] = false
 		}
@@ -122,7 +122,7 @@ func (h HighWay) WgStopSession(user *dbmng.User, statusMsg *tele.Message) error 
 
 	_, err = h.Tg.Edit(statusMsg, statusMsg.Text+"\nСессия завершена", &tele.SendOptions{ParseMode: "MarkdownV2"})
 	if err != nil {
-		_, err = h.Tg.Send(tele.ChatID(h.AdminLogChat), err.Error(), &tele.SendOptions{ReplyTo: statusMsg, ThreadID: h.AdminLogChatThread})
+		_, err = h.Tg.Send(tele.ChatID(h.AdminLogChat), err.Error(), &tele.SendOptions{ReplyTo: statusMsg, ThreadID: statusMsg.ThreadID})
 		if err != nil {
 			return fmt.Errorf("tg: failed to edit message %d: %v \n", user.ID, err)
 		}
