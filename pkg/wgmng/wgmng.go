@@ -71,6 +71,14 @@ func (h HighWay) Session(user *dbmng.User, t time.Time, statusMsg *tele.Message)
 			fmt.Printf("wgmng: failed to run command for session: %d", err)
 		}
 
+		if slices.IndexFunc(strings.Split(string(out), "\r\n"), func(c string) bool { return strings.Contains(c, user.PeerPub) }) == -1 {
+			err := h.WgStopSession(user, statusMsg)
+			if err != nil {
+				fmt.Printf("tg: failed to stop session: %d, %v \n", statusMsg.ID, err)
+			}
+			h.SessionManager[user.ID] = false
+		}
+
 		outStr := strings.Fields(strings.Split(string(out), "\r\n")[slices.IndexFunc(strings.Split(string(out), "\r\n"), func(c string) bool { return strings.Contains(c, user.PeerPub) })])
 		statusMsgText := "Создана сессия: \n" + " 👔: " + strings.ReplaceAll(user.UserName, ".", "\\.") + "\n" + " 🌍: ``" + strings.ReplaceAll(outStr[3], ".", "\\.") + "``\n" + " ⏬: " + outStr[5] + "\n" + " ⏫: " + outStr[6] + "\n"
 
