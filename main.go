@@ -103,7 +103,8 @@ func main() {
 		MessageManager:     messageManager,
 		AdminLogChat:       adminLogChat,
 		AdminLogChatThread: adminLogChatThread,
-		WgPreKeysDir:       wgPreKeysDir}
+		WgPreKeysDir:       wgPreKeysDir,
+		Logger:             logger}
 	em := emailmng.HighWay{
 		WgServerIP:  &wgSerIP,
 		WgPublicKey: &wgPubKey,

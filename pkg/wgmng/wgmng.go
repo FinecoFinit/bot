@@ -4,6 +4,7 @@ import (
 	"bot/pkg/dbmng"
 	"database/sql"
 	"fmt"
+	"github.com/rs/zerolog"
 	"os"
 	"os/exec"
 	"path"
@@ -24,6 +25,7 @@ type HighWay struct {
 	AdminLogChat       int64
 	AdminLogChatThread int
 	WgPreKeysDir       string
+	Logger             zerolog.Logger
 }
 
 func (h HighWay) WgStartSession(user *dbmng.User) error {
@@ -68,13 +70,13 @@ func (h HighWay) Session(user *dbmng.User, t time.Time, statusMsg *tele.Message)
 		wgCommand := exec.Command("wg", "show", "wg0-server", "dump")
 		out, err := wgCommand.Output()
 		if err != nil {
-			fmt.Printf("wgmng: failed to run command for session: %d", err)
+			h.Logger.Err(err).Msg("wg: failed to run command for session")
 		}
 
 		if slices.IndexFunc(strings.Split(string(out), "\r\n"), func(c string) bool { return strings.Contains(c, user.PeerPub) }) == -1 {
 			err := h.WgStopSession(user, statusMsg)
 			if err != nil {
-				fmt.Printf("tg: failed to stop session: %d, %v \n", statusMsg.ID, err)
+				h.Logger.Err(err).Msg("wg: failed to stop session")
 			}
 			h.SessionManager[user.ID] = false
 		}
@@ -85,7 +87,7 @@ func (h HighWay) Session(user *dbmng.User, t time.Time, statusMsg *tele.Message)
 		if statusMsg.Text != statusMsgText {
 			_, err = h.Tg.Edit(statusMsg, statusMsgText, &tele.SendOptions{ParseMode: "MarkdownV2"})
 			if err != nil {
-				fmt.Printf("tg: failed to edit message: %d, %v \n", statusMsg.ID, err)
+				h.Logger.Err(err).Msg("session: wg: tg: failed to edit status message")
 			}
 			statusMsg.Text = statusMsgText
 		}
@@ -93,14 +95,8 @@ func (h HighWay) Session(user *dbmng.User, t time.Time, statusMsg *tele.Message)
 		if time.Now().Compare(t.Add(time.Hour*11)) == +1 {
 			err := h.WgStopSession(user, statusMsg)
 			if err != nil {
-				fmt.Printf("tg: failed to stop session: %d, %v \n", statusMsg.ID, err)
+				h.Logger.Err(err).Msg("session: wg: failed to stop session")
 			}
-
-			_, err = h.Tg.Send(tele.ChatID(user.ID), "Сессия завершена", &tele.SendOptions{ParseMode: "MarkdownV2"})
-			if err != nil {
-				fmt.Printf("tg: failed to send message %d: %v \n", user.ID, err)
-			}
-
 			h.SessionManager[user.ID] = false
 		}
 		time.Sleep(30 * time.Second)
@@ -124,8 +120,6 @@ func (h HighWay) WgStopSession(user *dbmng.User, statusMsg *tele.Message) error 
 		return fmt.Errorf("wgmng: failed to stop session: %w", err)
 	}
 
-	h.MessageManager[user.ID] = nil
-
 	_, err = h.Tg.Edit(statusMsg, statusMsg.Text+"\nСессия завершена", &tele.SendOptions{ParseMode: "MarkdownV2"})
 	if err != nil {
 		_, err = h.Tg.Send(tele.ChatID(h.AdminLogChat), err.Error(), &tele.SendOptions{ReplyTo: statusMsg, ThreadID: h.AdminLogChatThread})
@@ -133,5 +127,8 @@ func (h HighWay) WgStopSession(user *dbmng.User, statusMsg *tele.Message) error 
 			return fmt.Errorf("tg: failed to edit message %d: %v \n", user.ID, err)
 		}
 	}
+
+	h.MessageManager[user.ID] = nil
+
 	return nil
 }
