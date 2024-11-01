@@ -251,7 +251,7 @@ func main() {
 			return c.Respond(&tele.CallbackResponse{Text: "Неудалось обработать ID пользователя"})
 		}
 
-		if funk.ContainsInt64(qDBids, id) {
+		if !funk.ContainsInt64(qDBids, id) {
 			return c.Respond(&tele.CallbackResponse{Text: "Пользователь не существует в списке на регистрацию"})
 		}
 
