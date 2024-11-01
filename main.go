@@ -19,7 +19,7 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/wneessen/go-mail"
 
-	tele "gopkg.in/telebot.v3"
+	tele "gopkg.in/telebot.v4"
 )
 
 func main() {
@@ -33,6 +33,7 @@ func main() {
 		wgSerIP              = os.Getenv("WG_SER_IP")
 		wgPubKey             = os.Getenv("WG_SER_PUBK")
 		wgPreKeysDir         = os.Getenv("WG_PREKEYS_DIR")
+		wgAllowedIPs         = os.Getenv("WG_ALLOWED_IPS")
 		token                = os.Getenv("TOKEN")
 		adminLogChatID       = os.Getenv("ADMIN_LOG_CHAT")
 		adminLogChatThreadID = os.Getenv("ADMIN_LOG_CHAT_THREAD")
@@ -44,6 +45,7 @@ func main() {
 	)
 
 	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
+	multiLog := zerolog.MultiLevelWriter(os.Stdout, logFile)
 	if err != nil {
 		panic(err)
 	}
@@ -53,7 +55,7 @@ func main() {
 			panic(err)
 		}
 	}(logFile)
-	logger := zerolog.New(logFile).With().Timestamp().Logger()
+	logger := zerolog.New(multiLog).With().Timestamp().Logger()
 
 	pref := tele.Settings{Token: token, Poller: &tele.LongPoller{Timeout: 10 * time.Second}}
 	tg, err := tele.NewBot(pref)
@@ -148,12 +150,22 @@ func main() {
 
 		_, err = tg.Send(
 			tele.ChatID(adminLogChat),
-			"В очередь добавлен новый пользователь:\nID: ``"+strconv.FormatInt(tgu.ID, 10)+
-				"``\nusername: @"+tgu.Username+
-				"\nlogin: "+strings.Replace(tga[0], ".", "\\.", 1)+
-				"\n`\n/accept "+strconv.FormatInt(tgu.ID, 10)+" [AllowedIP]`", &tele.SendOptions{
+			"В очередь добавлен новый пользователь:\n🆔: ``"+strconv.FormatInt(tgu.ID, 10)+
+				"``\n👔: @"+tgu.Username+
+				"\n✉️: "+strings.Replace(tga[0], ".", "\\.", 1), &tele.SendOptions{
 				ThreadID:  adminLogChatThread,
-				ParseMode: "MarkdownV2"})
+				ParseMode: "MarkdownV2",
+				ReplyMarkup: &tele.ReplyMarkup{
+					OneTimeKeyboard: true,
+					InlineKeyboard: [][]tele.InlineButton{{
+						tele.InlineButton{
+							Unique: "register_accept",
+							Text:   "Accept",
+							Data:   strconv.FormatInt(tgu.ID, 10)},
+						tele.InlineButton{
+							Unique: "register_deny",
+							Text:   "Deny",
+							Data:   strconv.FormatInt(tgu.ID, 10)}}}}})
 		if err != nil {
 			logger.Error().Err(err).Msg("registration")
 		}
@@ -163,6 +175,109 @@ func main() {
 		}
 		logger.Info().Msg("new user registered in queue: " + strconv.FormatInt(tgu.ID, 10))
 		return c.Send("Заявка на регистрацию принята")
+	})
+
+	tg.Handle(&tele.Btn{Unique: "register_accept"}, func(c tele.Context) error {
+		var tgu = c.Sender()
+
+		if !slices.Contains(aDBids, tgu.ID) {
+			logger.Error().Msg("accept: non admin user tried to use accept user")
+			return c.Respond(&tele.CallbackResponse{Text: "Not admin"})
+		}
+
+		id, err := strconv.ParseInt(c.Data(), 10, 64)
+		if err != nil {
+			return c.Respond(&tele.CallbackResponse{Text: "Неудалось обработать ID пользователя"})
+		}
+
+		if funk.ContainsInt64(uDBids, id) {
+			return c.Respond(&tele.CallbackResponse{Text: "Пользователь уже зарегистрирован"})
+		}
+
+		qUser, err := s.GetQueueUser(&id)
+		if err != nil {
+			logger.Error().Err(err).Msg("accept")
+			return c.Respond(&tele.CallbackResponse{Text: fmt.Errorf("accept: %w \n", err).Error()})
+		}
+
+		user := dbmng.User{
+			ID:               qUser.ID,
+			UserName:         qUser.UserName,
+			Enabled:          1,
+			TOTPSecret:       qUser.TOTPSecret,
+			Session:          0,
+			SessionTimeStamp: "never",
+			Peer:             qUser.Peer,
+			PeerPre:          qUser.PeerPre,
+			PeerPub:          qUser.PeerPub,
+			AllowedIPs:       wgAllowedIPs,
+			IP:               qUser.IP,
+		}
+
+		err = s.RegisterUser(&user)
+		if err != nil {
+			logger.Error().Err(err).Msg("accept")
+			return c.Respond(&tele.CallbackResponse{Text: err.Error()})
+		}
+
+		_, err = tg.Edit(c.Message(), c.Message().Text+"\nПользователь добавлен")
+		if err != nil {
+			return c.Respond(&tele.CallbackResponse{Text: err.Error()})
+		}
+
+		err = s.GetUsersIDs(&uDBids)
+		if err != nil {
+			logger.Error().Err(err).Msg("accept")
+			return c.Respond(&tele.CallbackResponse{Text: err.Error()})
+		}
+		err = s.GetQueueUsersIDs(&qDBids)
+		if err != nil {
+			logger.Error().Err(err).Msg("accept")
+			return c.Respond(&tele.CallbackResponse{Text: err.Error()})
+		}
+		return c.Respond(&tele.CallbackResponse{Text: "Пользователь: " + user.UserName + " добавлен", ShowAlert: false})
+	})
+
+	tg.Handle(&tele.Btn{Unique: "register_deny"}, func(c tele.Context) error {
+		var tgu = c.Sender()
+
+		if !slices.Contains(aDBids, tgu.ID) {
+			logger.Error().Msg("deny: non admin user tried to use accept user")
+			return c.Respond(&tele.CallbackResponse{Text: "Not admin"})
+		}
+
+		id, err := strconv.ParseInt(c.Data(), 10, 64)
+		if err != nil {
+			return c.Respond(&tele.CallbackResponse{Text: "Неудалось обработать ID пользователя"})
+		}
+
+		if funk.ContainsInt64(qDBids, id) {
+			return c.Respond(&tele.CallbackResponse{Text: "Пользователь не существует в списке на регистрацию"})
+		}
+
+		qUser, err := s.GetQueueUser(&id)
+		if err != nil {
+			logger.Error().Err(err).Msg("deny")
+			return c.Respond(&tele.CallbackResponse{Text: fmt.Errorf("accept: %w \n", err).Error()})
+		}
+
+		err = s.UnRegisterQUser(&qUser)
+		if err != nil {
+			logger.Error().Err(err).Msg("deny")
+			return c.Respond(&tele.CallbackResponse{Text: err.Error()})
+		}
+
+		_, err = tg.Edit(c.Message(), c.Message().Text+"\nПользователь отклонен")
+		if err != nil {
+			return c.Respond(&tele.CallbackResponse{Text: err.Error()})
+		}
+
+		err = s.GetQueueUsersIDs(&qDBids)
+		if err != nil {
+			logger.Error().Err(err).Msg("deny")
+			return c.Respond(&tele.CallbackResponse{Text: err.Error()})
+		}
+		return c.Respond(&tele.CallbackResponse{Text: "Пользователь: " + qUser.UserName + " отклонен", ShowAlert: false})
 	})
 
 	tg.Handle("/accept", func(c tele.Context) error {
@@ -222,11 +337,10 @@ func main() {
 			return c.Send(err.Error())
 		}
 
-		return c.Send("Пользователь успешно добавлен")
+		return c.Send("Пользователь успешно добавлен", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	})
 
 	tg.Handle("/adduser", func(c tele.Context) error {
-		// Get telegram user info
 		var (
 			tgu = c.Sender()
 			tga = c.Args()
@@ -279,7 +393,42 @@ func main() {
 			return c.Send(err.Error())
 		}
 
-		return c.Send("Пользователь добавлен")
+		return c.Send("Пользователь добавлен", &tele.SendOptions{ThreadID: c.Message().ThreadID})
+	})
+
+	tg.Handle("/remuser", func(c tele.Context) error {
+		var (
+			tgu = c.Sender()
+			tga = c.Args()
+		)
+
+		if !slices.Contains(aDBids, tgu.ID) {
+			logger.Error().Msg("adduser: non admin user tried to use /adduser" + strconv.FormatInt(tgu.ID, 10))
+			return c.Send("Unknown")
+		}
+
+		if len(tga) != 1 {
+			return c.Send("Ошибка введенных параметров")
+		}
+
+		id, err := strconv.ParseInt(tga[0], 10, 64)
+		if err != nil {
+			return c.Send(err.Error())
+		}
+
+		user, err := s.GetUser(&id)
+		if err != nil {
+			logger.Error().Err(err).Msg("failed to get user")
+			return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+		}
+
+		err = s.UnregisterUser(&user)
+		if err != nil {
+			logger.Error().Err(err).Msg("failed to unregister user")
+			return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+		}
+
+		return c.Send("Пользователь: "+user.UserName+" удален", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	})
 
 	tg.Handle("/sendcreds", func(c tele.Context) error {
@@ -314,13 +463,12 @@ func main() {
 			return c.Send(err.Error())
 		}
 
-		return c.Send("Креды отправлены")
+		return c.Send("Креды отправлены", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	})
 
 	tg.Handle("/enable", func(c tele.Context) error {
 		var (
 			tgu = c.Sender()
-			tga = c.Args()
 		)
 		if !slices.Contains(aDBids, tgu.ID) {
 			logger.Error().Msg("enable: non admin user tried to use /enable " + strconv.FormatInt(tgu.ID, 10))
@@ -339,7 +487,7 @@ func main() {
 			return c.Send("Не удалось активировать пользователя")
 		}
 
-		return c.Send("Пользователь " + tga[0] + " активирован")
+		return c.Send("Пользователь "+strconv.FormatInt(user.ID, 10)+" активирован", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	})
 
 	tg.Handle("/disable", func(c tele.Context) error {
@@ -375,7 +523,7 @@ func main() {
 			return c.Send("Не удалось деактивировать пользователя")
 		}
 
-		return c.Send("Пользователь " + tga[0] + " деактивирован")
+		return c.Send("Пользователь "+tga[0]+" деактивирован", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	})
 
 	tg.Handle("/get", func(c tele.Context) error {
@@ -416,6 +564,10 @@ func main() {
 				logger.Error().Err(err).Msg("failed to send message")
 			}
 			return c.Send("Произошла ошибка, обратитесь к администратору")
+		}
+
+		if user.Enabled == 0 {
+			return c.Send("Аккаунт деактивирован")
 		}
 
 		key, err := totp.Generate(totp.GenerateOpts{

@@ -109,6 +109,15 @@ func (d DB) RegisterQueue(id int64, user string) error {
 	return nil
 }
 
+func (d DB) UnRegisterQUser(qUser *QueueUser) error {
+	_, err := d.Db.Exec("DELETE FROM registration_queue WHERE id = $1",
+		qUser.ID)
+	if err != nil {
+		return fmt.Errorf("db: delete from registration_queue: %w", err)
+	}
+	return nil
+}
+
 func (d DB) RegisterUser(user *User) error {
 	_, err := d.Db.Exec(
 		"INSERT INTO users(ID, UserName, Enabled, TOTPSecret, Session, SessionTimeStamp, Peer, PeerPre, PeerPub, AllowedIPs, IP) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
@@ -129,6 +138,15 @@ func (d DB) RegisterUser(user *User) error {
 	_, err = d.Db.Exec(
 		"DELETE FROM registration_queue WHERE ID = $1",
 		&user.ID)
+	if err != nil {
+		return fmt.Errorf("db: delete from registration_queue: %w", err)
+	}
+	return nil
+}
+
+func (d DB) UnregisterUser(user *User) error {
+	_, err := d.Db.Exec("DELETE FROM users WHERE id = $1",
+		user.ID)
 	if err != nil {
 		return fmt.Errorf("db: delete from registration_queue: %w", err)
 	}

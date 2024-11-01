@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/thoas/go-funk"
 )
 
 type User struct {
@@ -234,10 +233,9 @@ func (d DB) GetUsersIDs(ids *[]int64) error {
 	if err != nil {
 		return fmt.Errorf("db: failed to get user ids: %w", err)
 	}
+	*ids = nil
 	for _, u := range usersIDs {
-		if !funk.ContainsInt64(*ids, u.ID) {
-			*ids = append(*ids, u.ID)
-		}
+		*ids = append(*ids, u.ID)
 	}
 	return nil
 }
@@ -345,10 +343,9 @@ func (d DB) GetQueueUsersIDs(ids *[]int64) error {
 	if err != nil {
 		return fmt.Errorf("db: failed to get queue users ids: %w", err)
 	}
+	*ids = nil
 	for _, u := range usersIDs {
-		if !funk.ContainsInt64(*ids, u.ID) {
-			*ids = append(*ids, u.ID)
-		}
+		*ids = append(*ids, u.ID)
 	}
 	return nil
 }
@@ -390,10 +387,9 @@ func (d DB) GetAdminsIDs(ids *[]int64) error {
 	if err != nil {
 		return fmt.Errorf("db: failed to get admins ids: %w", err)
 	}
+	*ids = nil
 	for _, a := range adminsIDs {
-		if !funk.ContainsInt64(*ids, a.ID) {
-			*ids = append(*ids, a.ID)
-		}
+		*ids = append(*ids, a.ID)
 	}
 	return nil
 }

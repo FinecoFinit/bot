@@ -14,7 +14,7 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	tele "gopkg.in/telebot.v3"
+	tele "gopkg.in/telebot.v4"
 )
 
 type HighWay struct {
