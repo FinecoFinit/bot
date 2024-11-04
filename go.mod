@@ -6,7 +6,7 @@ require (
 	github.com/pquerna/otp v1.4.0
 	github.com/rs/zerolog v1.33.0
 	github.com/thoas/go-funk v0.9.3
-	github.com/wneessen/go-mail v0.5.0
+	github.com/wneessen/go-mail v0.5.1
 )
 
 require (
@@ -20,5 +20,5 @@ require (
 
 require (
 	github.com/boombuler/barcode v1.0.2 // indirect
-	github.com/mattn/go-sqlite3 v1.14.23
+	github.com/mattn/go-sqlite3 v1.14.24
 )
