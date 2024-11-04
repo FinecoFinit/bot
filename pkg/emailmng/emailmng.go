@@ -59,6 +59,7 @@ func (h HighWay) GenConf(user *dbmng.User) *bytes.Buffer {
 			"DNS = 192.168.28.15\r\n" +
 			"\r\n" +
 			"[Peer]\r\nPublicKey = " + *h.WgPublicKey + "\r\n" +
+			"PresharedKey = " + user.PeerPre + "\r\n" +
 			"AllowedIPs = " + user.AllowedIPs + "\r\n" +
 			"Endpoint = " + *h.WgServerIP + "\r\n" +
 			"PersistentKeepalive = 15")

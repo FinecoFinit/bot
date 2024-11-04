@@ -48,19 +48,32 @@ func (h HighWay) WgStartSession(user *dbmng.User) error {
 		"wg0-server",
 		"peer", user.PeerPub,
 		"preshared-key", preK,
-		"allowed-ips", "192.168.88."+strconv.Itoa(user.IP)+"/32")
+		"allowed-ips", "192.168.186."+strconv.Itoa(user.IP)+"/32")
 	err = wgCommand.Run()
 	if err != nil {
 		return fmt.Errorf("wgmng: failed to start session: %w", err)
 	}
 
-	h.MessageManager[user.ID], err = h.Tg.Send(tele.ChatID(h.AdminLogChat), "Создана сессия для: "+user.UserName, &tele.SendOptions{ThreadID: h.AdminLogChatThread})
+	h.MessageManager[user.ID], err = h.Tg.Send(tele.ChatID(h.AdminLogChat), "Создана сессия для: "+user.UserName, &tele.SendOptions{
+		ThreadID: h.AdminLogChatThread,
+		ReplyMarkup: &tele.ReplyMarkup{
+			OneTimeKeyboard: true,
+			InlineKeyboard: [][]tele.InlineButton{{
+				tele.InlineButton{
+					Unique: "stop_session",
+					Text:   "Stop",
+					Data:   strconv.FormatInt(user.ID, 10)}}}}})
 	if err != nil {
 		return fmt.Errorf("tgmng: failed to send status message: %w", err)
 	}
 
 	h.SessionManager[user.ID] = true
 	go h.Session(user, time.Now(), h.MessageManager[user.ID])
+
+	//err = os.Remove(preK)
+	//if err != nil {
+	//	return fmt.Errorf("wgmng: failed to delete pre-shared key from directory: %w", err)
+	//}
 
 	return nil
 }
@@ -78,14 +91,22 @@ func (h HighWay) Session(user *dbmng.User, t time.Time, statusMsg *tele.Message)
 			if err != nil {
 				h.Logger.Err(err).Msg("wg: failed to find wg peer")
 			}
-			h.SessionManager[user.ID] = false
+			return
 		}
 
 		outStr := strings.Fields(strings.Split(string(out), "\r\n")[slices.IndexFunc(strings.Split(string(out), "\r\n"), func(c string) bool { return strings.Contains(c, user.PeerPub) })])
 		statusMsgText := "Создана сессия: \n" + " 👔: " + strings.ReplaceAll(user.UserName, ".", "\\.") + "\n" + " 🌍: ``" + strings.ReplaceAll(outStr[3], ".", "\\.") + "``\n" + " ⏬: " + outStr[5] + "\n" + " ⏫: " + outStr[6] + "\n"
 
 		if statusMsg.Text != statusMsgText {
-			_, err = h.Tg.Edit(statusMsg, statusMsgText, &tele.SendOptions{ParseMode: "MarkdownV2"})
+			_, err = h.Tg.Edit(statusMsg, statusMsgText, &tele.SendOptions{
+				ParseMode: "MarkdownV2",
+				ReplyMarkup: &tele.ReplyMarkup{
+					OneTimeKeyboard: true,
+					InlineKeyboard: [][]tele.InlineButton{{
+						tele.InlineButton{
+							Unique: "stop_session",
+							Text:   "Stop",
+							Data:   strconv.FormatInt(user.ID, 10)}}}}})
 			if err != nil {
 				h.Logger.Err(err).Msg("session: wg: tg: failed to edit status message")
 			}
@@ -97,7 +118,6 @@ func (h HighWay) Session(user *dbmng.User, t time.Time, statusMsg *tele.Message)
 			if err != nil {
 				h.Logger.Err(err).Msg("session: wg: failed to stop session")
 			}
-			h.SessionManager[user.ID] = false
 		}
 		time.Sleep(30 * time.Second)
 	}
@@ -120,7 +140,7 @@ func (h HighWay) WgStopSession(user *dbmng.User, statusMsg *tele.Message) error 
 		return fmt.Errorf("wgmng: failed to stop session: %w", err)
 	}
 
-	_, err = h.Tg.Edit(statusMsg, statusMsg.Text+"\nСессия завершена", &tele.SendOptions{ParseMode: "MarkdownV2"})
+	_, err = h.Tg.Edit(statusMsg, statusMsg.Text+"Сессия завершена", &tele.SendOptions{ParseMode: "MarkdownV2"})
 	if err != nil {
 		_, err = h.Tg.Send(tele.ChatID(h.AdminLogChat), err.Error(), &tele.SendOptions{ReplyTo: statusMsg, ThreadID: statusMsg.ThreadID})
 		if err != nil {
@@ -128,6 +148,7 @@ func (h HighWay) WgStopSession(user *dbmng.User, statusMsg *tele.Message) error 
 		}
 	}
 
+	h.SessionManager[user.ID] = false
 	h.MessageManager[user.ID] = nil
 
 	return nil

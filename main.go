@@ -219,8 +219,14 @@ func main() {
 			logger.Error().Err(err).Msg("accept")
 			return c.Respond(&tele.CallbackResponse{Text: err.Error()})
 		}
+		logger.Info().Msg("user: " + user.UserName + " with id: " + strconv.FormatInt(user.ID, 10) + " registered")
 
 		_, err = tg.Edit(c.Message(), c.Message().Text+"\nПользователь добавлен")
+		if err != nil {
+			return c.Respond(&tele.CallbackResponse{Text: err.Error()})
+		}
+
+		_, err = tg.Send(tele.ChatID(user.ID), "Регистрация завершена, далее требуется только ввод двухфакторного кода")
 		if err != nil {
 			return c.Respond(&tele.CallbackResponse{Text: err.Error()})
 		}
@@ -266,6 +272,7 @@ func main() {
 			logger.Error().Err(err).Msg("deny")
 			return c.Respond(&tele.CallbackResponse{Text: err.Error()})
 		}
+		logger.Info().Msg("queue user: " + qUser.UserName + " with id: " + strconv.FormatInt(qUser.ID, 10) + " unregistered")
 
 		_, err = tg.Edit(c.Message(), c.Message().Text+"\nПользователь отклонен")
 		if err != nil {
@@ -278,6 +285,42 @@ func main() {
 			return c.Respond(&tele.CallbackResponse{Text: err.Error()})
 		}
 		return c.Respond(&tele.CallbackResponse{Text: "Пользователь: " + qUser.UserName + " отклонен", ShowAlert: false})
+	})
+
+	tg.Handle(&tele.Btn{Unique: "stop_session"}, func(c tele.Context) error {
+		var tgu = c.Sender()
+
+		if !slices.Contains(aDBids, tgu.ID) {
+			logger.Error().Msg("stop_session: non admin user tried to use accept user")
+			return c.Respond(&tele.CallbackResponse{Text: "Not admin"})
+		}
+
+		id, err := strconv.ParseInt(c.Data(), 10, 64)
+		if err != nil {
+			return c.Respond(&tele.CallbackResponse{Text: "Неудалось обработать ID пользователя"})
+		}
+
+		if !sessionManager[id] {
+			_, err := tg.Edit(c.Message(), strings.ReplaceAll(c.Message().Text, ".", "\\.")+"\nСессия завершена", &tele.SendOptions{ParseMode: "MarkdownV2"})
+			if err != nil {
+				logger.Error().Err(err).Msg("stop_session: failed to edit session message")
+			}
+			return c.Respond(&tele.CallbackResponse{Text: "Сессия не существует"})
+		}
+
+		user, err := s.GetUser(&id)
+		if err != nil {
+			logger.Error().Err(err).Msg("stop_session: failed to get user")
+			return c.Respond(&tele.CallbackResponse{Text: "db: Не удалось получить профиль пользователя"})
+		}
+
+		err = wg.WgStopSession(&user, messageManager[id])
+		if err != nil {
+			logger.Error().Err(err).Msg("stop_session: failed to stop session from button")
+			return c.Respond(&tele.CallbackResponse{Text: "wg: Не удалось остановить сессию"})
+		}
+
+		return c.Respond(&tele.CallbackResponse{Text: "Сессия пользователя " + user.UserName + " остановлена", ShowAlert: false})
 	})
 
 	tg.Handle("/accept", func(c tele.Context) error {
@@ -426,6 +469,12 @@ func main() {
 		if err != nil {
 			logger.Error().Err(err).Msg("failed to unregister user")
 			return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+		}
+
+		err = s.GetUsersIDs(&uDBids)
+		if err != nil {
+			logger.Error().Err(err).Msg("accept")
+			return c.Respond(&tele.CallbackResponse{Text: err.Error()})
 		}
 
 		return c.Send("Пользователь: "+user.UserName+" удален", &tele.SendOptions{ThreadID: c.Message().ThreadID})
