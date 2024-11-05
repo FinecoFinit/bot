@@ -2,9 +2,8 @@ package wgmng
 
 import (
 	"bot/pkg/dbmng"
-	"database/sql"
+	"bot/pkg/worker"
 	"fmt"
-	"github.com/rs/zerolog"
 	"os"
 	"os/exec"
 	"path"
@@ -18,19 +17,17 @@ import (
 )
 
 type HighWay struct {
-	Db                 *sql.DB
+	DbSet              worker.DbSet
 	Tg                 *tele.Bot
-	SessionManager     map[int64]bool
-	MessageManager     map[int64]*tele.Message
+	Resources          worker.Resources
 	AdminLogChat       int64
 	AdminLogChatThread int
 	WgPreKeysDir       string
-	Logger             zerolog.Logger
 }
 
 func (h HighWay) WgStartSession(user *dbmng.User) error {
 	preK := path.Join(h.WgPreKeysDir, strconv.FormatInt(user.ID, 10))
-	_, err := h.Db.Exec("UPDATE users SET Session = $1,SessionTimeStamp = $2 WHERE id = $3", 1, time.Now(), user.ID)
+	_, err := h.DbSet.DbVar.Exec("UPDATE users SET Session = $1,SessionTimeStamp = $2 WHERE id = $3", 1, time.Now(), user.ID)
 	if err != nil {
 		return fmt.Errorf("db: failed to set start session: %w", err)
 	}
@@ -54,7 +51,7 @@ func (h HighWay) WgStartSession(user *dbmng.User) error {
 		return fmt.Errorf("wgmng: failed to start session: %w", err)
 	}
 
-	h.MessageManager[user.ID], err = h.Tg.Send(tele.ChatID(h.AdminLogChat), "Создана сессия для: "+user.UserName, &tele.SendOptions{
+	h.Resources.MessageManager[user.ID], err = h.Tg.Send(tele.ChatID(h.AdminLogChat), "Создана сессия для: "+user.UserName, &tele.SendOptions{
 		ThreadID: h.AdminLogChatThread,
 		ReplyMarkup: &tele.ReplyMarkup{
 			OneTimeKeyboard: true,
@@ -67,8 +64,8 @@ func (h HighWay) WgStartSession(user *dbmng.User) error {
 		return fmt.Errorf("tgmng: failed to send status message: %w", err)
 	}
 
-	h.SessionManager[user.ID] = true
-	go h.Session(user, time.Now(), h.MessageManager[user.ID])
+	h.Resources.SessionManager[user.ID] = true
+	go h.Session(user, time.Now(), h.Resources.MessageManager[user.ID])
 
 	//err = os.Remove(preK)
 	//if err != nil {
@@ -79,17 +76,17 @@ func (h HighWay) WgStartSession(user *dbmng.User) error {
 }
 
 func (h HighWay) Session(user *dbmng.User, t time.Time, statusMsg *tele.Message) {
-	for h.SessionManager[user.ID] {
+	for h.Resources.SessionManager[user.ID] {
 		wgCommand := exec.Command("wg", "show", "wg0-server", "dump")
 		out, err := wgCommand.Output()
 		if err != nil {
-			h.Logger.Err(err).Msg("wg: failed to run command for session")
+			h.Resources.Logger.Err(err).Msg("wg: failed to run command for session")
 		}
 
 		if slices.IndexFunc(strings.Split(string(out), "\r\n"), func(c string) bool { return strings.Contains(c, user.PeerPub) }) == -1 {
 			err := h.WgStopSession(user, statusMsg)
 			if err != nil {
-				h.Logger.Err(err).Msg("wg: failed to find wg peer")
+				h.Resources.Logger.Err(err).Msg("wg: failed to find wg peer")
 			}
 			return
 		}
@@ -108,7 +105,7 @@ func (h HighWay) Session(user *dbmng.User, t time.Time, statusMsg *tele.Message)
 							Text:   "Stop",
 							Data:   strconv.FormatInt(user.ID, 10)}}}}})
 			if err != nil {
-				h.Logger.Err(err).Msg("session: wg: tg: failed to edit status message")
+				h.Resources.Logger.Err(err).Msg("session: wg: tg: failed to edit status message")
 			}
 			statusMsg.Text = statusMsgText
 		}
@@ -116,7 +113,7 @@ func (h HighWay) Session(user *dbmng.User, t time.Time, statusMsg *tele.Message)
 		if time.Now().Compare(t.Add(time.Hour*11)) == +1 {
 			err := h.WgStopSession(user, statusMsg)
 			if err != nil {
-				h.Logger.Err(err).Msg("session: wg: failed to stop session")
+				h.Resources.Logger.Err(err).Msg("session: wg: failed to stop session")
 			}
 		}
 		time.Sleep(30 * time.Second)
@@ -124,7 +121,7 @@ func (h HighWay) Session(user *dbmng.User, t time.Time, statusMsg *tele.Message)
 }
 
 func (h HighWay) WgStopSession(user *dbmng.User, statusMsg *tele.Message) error {
-	_, err := h.Db.Exec("UPDATE users SET Session = $1 WHERE id = $2", 0, user.ID)
+	_, err := h.DbSet.DbVar.Exec("UPDATE users SET Session = $1 WHERE id = $2", 0, user.ID)
 	if err != nil {
 		return fmt.Errorf("db: failed to set stop session: %w", err)
 	}
@@ -146,10 +143,11 @@ func (h HighWay) WgStopSession(user *dbmng.User, statusMsg *tele.Message) error 
 		if err != nil {
 			return fmt.Errorf("tg: failed to edit message %d: %v \n", user.ID, err)
 		}
+		return fmt.Errorf("wg: tg: failed to edit message: %w", err)
 	}
 
-	h.SessionManager[user.ID] = false
-	h.MessageManager[user.ID] = nil
+	h.Resources.SessionManager[user.ID] = false
+	h.Resources.MessageManager[user.ID] = nil
 
 	return nil
 }
