@@ -1,8 +1,8 @@
-package wgmng
+package wg
 
 import (
-	"bot/pkg/dbmng"
-	"bot/pkg/worker"
+	"bot/pkg/concierge"
+	"bot/pkg/db"
 	"fmt"
 	"os"
 	"os/exec"
@@ -17,17 +17,17 @@ import (
 )
 
 type HighWay struct {
-	DbSet              worker.DbSet
+	DataBase           db.DataBase
 	Tg                 *tele.Bot
-	Resources          worker.Resources
+	Resources          concierge.Resources
 	AdminLogChat       int64
 	AdminLogChatThread int
 	WgPreKeysDir       string
 }
 
-func (h HighWay) WgStartSession(user *dbmng.User) error {
+func (h HighWay) WgStartSession(user *db.User) error {
 	preK := path.Join(h.WgPreKeysDir, strconv.FormatInt(user.ID, 10))
-	_, err := h.DbSet.DbVar.Exec("UPDATE users SET Session = $1,SessionTimeStamp = $2 WHERE id = $3", 1, time.Now(), user.ID)
+	_, err := h.DataBase.DataBase.Exec("UPDATE users SET Session = $1,SessionTimeStamp = $2 WHERE id = $3", 1, time.Now(), user.ID)
 	if err != nil {
 		return fmt.Errorf("db: failed to set start session: %w", err)
 	}
@@ -75,7 +75,7 @@ func (h HighWay) WgStartSession(user *dbmng.User) error {
 	return nil
 }
 
-func (h HighWay) Session(user *dbmng.User, t time.Time, statusMsg *tele.Message) {
+func (h HighWay) Session(user *db.User, t time.Time, statusMsg *tele.Message) {
 	for h.Resources.SessionManager[user.ID] {
 		wgCommand := exec.Command("wg", "show", "wg0-server", "dump")
 		out, err := wgCommand.Output()
@@ -120,8 +120,8 @@ func (h HighWay) Session(user *dbmng.User, t time.Time, statusMsg *tele.Message)
 	}
 }
 
-func (h HighWay) WgStopSession(user *dbmng.User, statusMsg *tele.Message) error {
-	_, err := h.DbSet.DbVar.Exec("UPDATE users SET Session = $1 WHERE id = $2", 0, user.ID)
+func (h HighWay) WgStopSession(user *db.User, statusMsg *tele.Message) error {
+	_, err := h.DataBase.DataBase.Exec("UPDATE users SET Session = $1 WHERE id = $2", 0, user.ID)
 	if err != nil {
 		return fmt.Errorf("db: failed to set stop session: %w", err)
 	}

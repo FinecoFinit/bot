@@ -1,14 +1,15 @@
-package tgutil
+package tg
 
 import (
-	"bot/pkg/dbmng"
+	"bot/pkg/db"
 	"fmt"
-	"github.com/pquerna/otp/totp"
-	"github.com/thoas/go-funk"
-	tele "gopkg.in/telebot.v4"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/pquerna/otp/totp"
+	"github.com/thoas/go-funk"
+	tele "gopkg.in/telebot.v4"
 )
 
 func (h HighWay) Register(c tele.Context) error {
@@ -23,7 +24,7 @@ func (h HighWay) Register(c tele.Context) error {
 	if slices.Contains(*h.Resources.QUserDBIDs, c.Sender().ID) {
 		return c.Send("Регистрация в процессе")
 	}
-	err := h.DbSet.DbUtil.RegisterQueue(c.Sender().ID, c.Args()[0])
+	err := h.DataBase.RegisterQueue(c.Sender().ID, c.Args()[0])
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("registration: failed to register user")
 		return c.Send("Ошибка, сообщите администратору")
@@ -50,7 +51,7 @@ func (h HighWay) Register(c tele.Context) error {
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("registration")
 	}
-	err = h.DbSet.DbUtil.GetQueueUsersIDs(h.Resources.QUserDBIDs)
+	err = h.DataBase.GetQueueUsersIDs(h.Resources.QUserDBIDs)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("registration: failed to update queue ids")
 	}
@@ -73,13 +74,13 @@ func (h HighWay) Accept(c tele.Context) error {
 		return c.Send("Неудалось обработать ID пользователя")
 	}
 
-	qUser, err := h.DbSet.DbUtil.GetQueueUser(&id)
+	qUser, err := h.DataBase.GetQueueUser(&id)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("accept")
 		return c.Send(fmt.Errorf("accept: %w \n", err).Error())
 	}
 
-	user := dbmng.User{
+	user := db.User{
 		ID:               qUser.ID,
 		UserName:         qUser.UserName,
 		Enabled:          0,
@@ -93,18 +94,18 @@ func (h HighWay) Accept(c tele.Context) error {
 		IP:               qUser.IP,
 	}
 
-	err = h.DbSet.DbUtil.RegisterUser(&user)
+	err = h.DataBase.RegisterUser(&user)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("accept")
 		return c.Send(err.Error())
 	}
 
-	err = h.DbSet.DbUtil.GetUsersIDs(h.Resources.UserDBIDs)
+	err = h.DataBase.GetUsersIDs(h.Resources.UserDBIDs)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("accept")
 		return c.Send(err.Error())
 	}
-	err = h.DbSet.DbUtil.GetQueueUsersIDs(h.Resources.QUserDBIDs)
+	err = h.DataBase.GetQueueUsersIDs(h.Resources.QUserDBIDs)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("accept")
 		return c.Send(err.Error())
@@ -136,7 +137,7 @@ func (h HighWay) AddUser(c tele.Context) error {
 		return c.Send(err.Error())
 	}
 
-	user := dbmng.User{
+	user := db.User{
 		ID:               id,
 		UserName:         c.Args()[1],
 		Enabled:          enabled,
@@ -150,12 +151,12 @@ func (h HighWay) AddUser(c tele.Context) error {
 		IP:               ip,
 	}
 
-	err = h.DbSet.DbUtil.RegisterUser(&user)
+	err = h.DataBase.RegisterUser(&user)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("adduser")
 		return c.Send(err.Error())
 	}
-	err = h.DbSet.DbUtil.GetUsersIDs(h.Resources.UserDBIDs)
+	err = h.DataBase.GetUsersIDs(h.Resources.UserDBIDs)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("adduser")
 		return c.Send(err.Error())
@@ -179,19 +180,19 @@ func (h HighWay) DelUser(c tele.Context) error {
 		return c.Send(err.Error())
 	}
 
-	user, err := h.DbSet.DbUtil.GetUser(&id)
+	user, err := h.DataBase.GetUser(&id)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("failed to get user")
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
-	err = h.DbSet.DbUtil.UnregisterUser(&user)
+	err = h.DataBase.UnregisterUser(&user)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("failed to unregister user")
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
-	err = h.DbSet.DbUtil.GetUsersIDs(h.Resources.UserDBIDs)
+	err = h.DataBase.GetUsersIDs(h.Resources.UserDBIDs)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("accept")
 		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
@@ -215,7 +216,7 @@ func (h HighWay) SendCreds(c tele.Context) error {
 		return c.Send(err.Error())
 	}
 
-	user, err := h.DbSet.DbUtil.GetUser(&id)
+	user, err := h.DataBase.GetUser(&id)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("sendcreds")
 		return c.Send(err.Error())
@@ -241,13 +242,13 @@ func (h HighWay) Enable(c tele.Context) error {
 		return c.Send(err.Error())
 	}
 
-	user, err := h.DbSet.DbUtil.GetUser(&id)
+	user, err := h.DataBase.GetUser(&id)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("enable")
 		return c.Send(err.Error())
 	}
 
-	err = h.DbSet.DbUtil.EnableUser(&user.ID)
+	err = h.DataBase.EnableUser(&user.ID)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("enable")
 		return c.Send("Не удалось активировать пользователя")
@@ -267,7 +268,7 @@ func (h HighWay) Disable(c tele.Context) error {
 		return c.Send(err.Error())
 	}
 
-	user, err := h.DbSet.DbUtil.GetUser(&id)
+	user, err := h.DataBase.GetUser(&id)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("enable")
 		return c.Send(err.Error())
@@ -283,7 +284,7 @@ func (h HighWay) Disable(c tele.Context) error {
 		h.Resources.SessionManager[user.ID] = false
 	}
 
-	err = h.DbSet.DbUtil.DisableUser(&user.ID)
+	err = h.DataBase.DisableUser(&user.ID)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("disable")
 		return c.Send("Не удалось деактивировать пользователя")
@@ -298,7 +299,7 @@ func (h HighWay) Get(c tele.Context) error {
 		return c.Send("Unknown")
 	}
 
-	user, err := h.DbSet.DbUtil.GetUserName(&c.Args()[0])
+	user, err := h.DataBase.GetUserName(&c.Args()[0])
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("get")
 		return c.Send(err.Error())
@@ -312,7 +313,7 @@ func (h HighWay) Verification(c tele.Context) error {
 		return c.Send("Error")
 	}
 
-	user, err := h.DbSet.DbUtil.GetUser(&c.Sender().ID)
+	user, err := h.DataBase.GetUser(&c.Sender().ID)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("validation")
 		_, err = h.Tg.Send(tele.ChatID(h.DataVars.AdminLogChat), err.Error(), &tele.SendOptions{ThreadID: h.DataVars.AdminLogChatThread})

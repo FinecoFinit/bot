@@ -1,4 +1,4 @@
-package dbmng
+package db
 
 import (
 	"database/sql"
@@ -6,41 +6,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-type User struct {
-	ID               int64
-	UserName         string
-	Enabled          int
-	TOTPSecret       string
-	Session          int
-	SessionTimeStamp string
-	Peer             string
-	PeerPre          string
-	PeerPub          string
-	AllowedIPs       string
-	IP               int
-}
-
-type Admin struct {
-	ID       int64
-	UserName string
-}
-
-type QueueUser struct {
-	ID         int64
-	UserName   string
-	TOTPSecret string
-	Peer       string
-	PeerPub    string
-	PeerPre    string
-	IP         int
-}
-
-type DB struct {
-	Db *sql.DB
-}
-
-func (d DB) GetUsers() ([]User, error) {
-	rows, err := d.Db.Query("SELECT * FROM users")
+func (d DataBase) GetUsers() ([]User, error) {
+	rows, err := d.DataBase.Query("SELECT * FROM users")
 	if err != nil {
 		return nil, fmt.Errorf("db: query failed: %w", err)
 	}
@@ -102,9 +69,9 @@ func (d DB) GetUsers() ([]User, error) {
 	return users, nil
 }
 
-func (d DB) GetUser(id *int64) (User, error) {
+func (d DataBase) GetUser(id *int64) (User, error) {
 	var user User
-	rows, err := d.Db.Query(
+	rows, err := d.DataBase.Query(
 		"SELECT * FROM users WHERE id = $1",
 		&id)
 	if err != nil {
@@ -165,9 +132,9 @@ func (d DB) GetUser(id *int64) (User, error) {
 	return user, nil
 }
 
-func (d DB) GetUserName(u *string) (User, error) {
+func (d DataBase) GetUserName(u *string) (User, error) {
 	var user User
-	rows, err := d.Db.Query(
+	rows, err := d.DataBase.Query(
 		"SELECT * FROM users WHERE UserName like $1",
 		"%"+*u+"%")
 	if err != nil {
@@ -228,7 +195,7 @@ func (d DB) GetUserName(u *string) (User, error) {
 	return user, nil
 }
 
-func (d DB) GetUsersIDs(ids *[]int64) error {
+func (d DataBase) GetUsersIDs(ids *[]int64) error {
 	usersIDs, err := d.GetUsers()
 	if err != nil {
 		return fmt.Errorf("db: failed to get user ids: %w", err)
@@ -240,8 +207,8 @@ func (d DB) GetUsersIDs(ids *[]int64) error {
 	return nil
 }
 
-func (d DB) GetQueueUsers() ([]QueueUser, error) {
-	rows, err := d.Db.Query("SELECT * FROM registration_queue")
+func (d DataBase) GetQueueUsers() ([]QueueUser, error) {
+	rows, err := d.DataBase.Query("SELECT * FROM registration_queue")
 	if err != nil {
 		return nil, fmt.Errorf("db: query: %w", err)
 	}
@@ -286,9 +253,9 @@ func (d DB) GetQueueUsers() ([]QueueUser, error) {
 	return qUsers, nil
 }
 
-func (d DB) GetQueueUser(id *int64) (QueueUser, error) {
+func (d DataBase) GetQueueUser(id *int64) (QueueUser, error) {
 	var qUser QueueUser
-	rows, err := d.Db.Query(
+	rows, err := d.DataBase.Query(
 		"SELECT * FROM registration_queue WHERE id = $1",
 		&id)
 	if err != nil {
@@ -338,7 +305,7 @@ func (d DB) GetQueueUser(id *int64) (QueueUser, error) {
 	return qUser, nil
 }
 
-func (d DB) GetQueueUsersIDs(ids *[]int64) error {
+func (d DataBase) GetQueueUsersIDs(ids *[]int64) error {
 	usersIDs, err := d.GetQueueUsers()
 	if err != nil {
 		return fmt.Errorf("db: failed to get queue users ids: %w", err)
@@ -350,8 +317,8 @@ func (d DB) GetQueueUsersIDs(ids *[]int64) error {
 	return nil
 }
 
-func (d DB) GetAdmins() ([]Admin, error) {
-	rows, err := d.Db.Query("SELECT * FROM admins")
+func (d DataBase) GetAdmins() ([]Admin, error) {
+	rows, err := d.DataBase.Query("SELECT * FROM admins")
 	if err != nil {
 		return nil, fmt.Errorf("db: query: %w", err)
 	}
@@ -382,7 +349,7 @@ func (d DB) GetAdmins() ([]Admin, error) {
 	return admins, nil
 }
 
-func (d DB) GetAdminsIDs(ids *[]int64) error {
+func (d DataBase) GetAdminsIDs(ids *[]int64) error {
 	adminsIDs, err := d.GetAdmins()
 	if err != nil {
 		return fmt.Errorf("db: failed to get admins ids: %w", err)

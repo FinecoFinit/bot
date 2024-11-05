@@ -1,8 +1,6 @@
-package worker
+package concierge
 
 import (
-	"bot/pkg/dbmng"
-	"database/sql"
 	"github.com/rs/zerolog"
 	tele "gopkg.in/telebot.v4"
 )
@@ -10,11 +8,6 @@ import (
 type DataVars struct {
 	AdminLogChat       int64
 	AdminLogChatThread int
-}
-
-type DbSet struct {
-	DbVar  *sql.DB
-	DbUtil dbmng.DB
 }
 
 type Resources struct {

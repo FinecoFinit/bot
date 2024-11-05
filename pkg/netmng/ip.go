@@ -1,5 +1,0 @@
-package netmng
-
-func NewIPCTX() {
-
-}

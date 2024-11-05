@@ -1,13 +1,14 @@
-package tgutil
+package tg
 
 import (
-	"bot/pkg/dbmng"
+	"bot/pkg/db"
 	"fmt"
-	"github.com/thoas/go-funk"
-	tele "gopkg.in/telebot.v4"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/thoas/go-funk"
+	tele "gopkg.in/telebot.v4"
 )
 
 func (h HighWay) RegisterAccept(c tele.Context) error {
@@ -25,13 +26,13 @@ func (h HighWay) RegisterAccept(c tele.Context) error {
 		return c.Respond(&tele.CallbackResponse{Text: "Пользователь уже зарегистрирован"})
 	}
 
-	qUser, err := h.DbSet.DbUtil.GetQueueUser(&id)
+	qUser, err := h.DataBase.GetQueueUser(&id)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("accept")
 		return c.Respond(&tele.CallbackResponse{Text: fmt.Errorf("accept: %w \n", err).Error()})
 	}
 
-	user := dbmng.User{
+	user := db.User{
 		ID:               qUser.ID,
 		UserName:         qUser.UserName,
 		Enabled:          1,
@@ -45,7 +46,7 @@ func (h HighWay) RegisterAccept(c tele.Context) error {
 		IP:               qUser.IP,
 	}
 
-	err = h.DbSet.DbUtil.RegisterUser(&user)
+	err = h.DataBase.RegisterUser(&user)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("accept")
 		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
@@ -62,12 +63,12 @@ func (h HighWay) RegisterAccept(c tele.Context) error {
 		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
 	}
 
-	err = h.DbSet.DbUtil.GetUsersIDs(h.Resources.UserDBIDs)
+	err = h.DataBase.GetUsersIDs(h.Resources.UserDBIDs)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("accept")
 		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
 	}
-	err = h.DbSet.DbUtil.GetQueueUsersIDs(h.Resources.QUserDBIDs)
+	err = h.DataBase.GetQueueUsersIDs(h.Resources.QUserDBIDs)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("accept")
 		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
@@ -90,13 +91,13 @@ func (h HighWay) RegisterDeny(c tele.Context) error {
 		return c.Respond(&tele.CallbackResponse{Text: "Пользователь не существует в списке на регистрацию"})
 	}
 
-	qUser, err := h.DbSet.DbUtil.GetQueueUser(&id)
+	qUser, err := h.DataBase.GetQueueUser(&id)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("deny")
 		return c.Respond(&tele.CallbackResponse{Text: fmt.Errorf("accept: %w \n", err).Error()})
 	}
 
-	err = h.DbSet.DbUtil.UnRegisterQUser(&qUser)
+	err = h.DataBase.UnRegisterQUser(&qUser)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("deny")
 		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
@@ -108,7 +109,7 @@ func (h HighWay) RegisterDeny(c tele.Context) error {
 		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
 	}
 
-	err = h.DbSet.DbUtil.GetQueueUsersIDs(h.Resources.QUserDBIDs)
+	err = h.DataBase.GetQueueUsersIDs(h.Resources.QUserDBIDs)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("deny")
 		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
@@ -135,7 +136,7 @@ func (h HighWay) StopSession(c tele.Context) error {
 		return c.Respond(&tele.CallbackResponse{Text: "Сессия не существует"})
 	}
 
-	user, err := h.DbSet.DbUtil.GetUser(&id)
+	user, err := h.DataBase.GetUser(&id)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("stop_session: failed to get user")
 		return c.Respond(&tele.CallbackResponse{Text: "db: Не удалось получить профиль пользователя"})

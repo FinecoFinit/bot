@@ -1,4 +1,4 @@
-package dbmng
+package db
 
 import (
 	"bytes"
@@ -13,7 +13,7 @@ import (
 	"github.com/pquerna/otp/totp"
 )
 
-func (d DB) RegisterQueue(id int64, user string) error {
+func (d DataBase) RegisterQueue(id int64, user string) error {
 	var (
 		IPsPool []int
 		IPs     []string
@@ -48,7 +48,7 @@ func (d DB) RegisterQueue(id int64, user string) error {
 	}
 
 	// Calculate IP address
-	qIProw, err := d.Db.Query("SELECT IP from registration_queue")
+	qIProw, err := d.DataBase.Query("SELECT IP from registration_queue")
 	if err != nil {
 		return fmt.Errorf("RegisterQueue: db: failed to query IPs from registration_queue: %w", err)
 	}
@@ -67,7 +67,7 @@ func (d DB) RegisterQueue(id int64, user string) error {
 		IPs = append(IPs, IP)
 	}
 
-	uIProw, err := d.Db.Query("SELECT IP from users")
+	uIProw, err := d.DataBase.Query("SELECT IP from users")
 	if err != nil {
 		return fmt.Errorf("func RegisterQueue: db: failed to query IPs from users: %w", err)
 	}
@@ -94,7 +94,7 @@ func (d DB) RegisterQueue(id int64, user string) error {
 		return slices.Contains(IPs, strconv.Itoa(n))
 	})
 
-	_, err = d.Db.Exec(
+	_, err = d.DataBase.Exec(
 		"INSERT INTO registration_queue(ID, UserName, TOTPSecret, Peer, PeerPre, PeerPub, IP) VALUES($1,$2,$3,$4,$5,$6,$7)",
 		id,
 		user,
@@ -109,8 +109,8 @@ func (d DB) RegisterQueue(id int64, user string) error {
 	return nil
 }
 
-func (d DB) UnRegisterQUser(qUser *QueueUser) error {
-	_, err := d.Db.Exec("DELETE FROM registration_queue WHERE id = $1",
+func (d DataBase) UnRegisterQUser(qUser *QueueUser) error {
+	_, err := d.DataBase.Exec("DELETE FROM registration_queue WHERE id = $1",
 		qUser.ID)
 	if err != nil {
 		return fmt.Errorf("db: delete from registration_queue: %w", err)
@@ -118,8 +118,8 @@ func (d DB) UnRegisterQUser(qUser *QueueUser) error {
 	return nil
 }
 
-func (d DB) RegisterUser(user *User) error {
-	_, err := d.Db.Exec(
+func (d DataBase) RegisterUser(user *User) error {
+	_, err := d.DataBase.Exec(
 		"INSERT INTO users(ID, UserName, Enabled, TOTPSecret, Session, SessionTimeStamp, Peer, PeerPre, PeerPub, AllowedIPs, IP) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
 		&user.ID,
 		&user.UserName,
@@ -135,7 +135,7 @@ func (d DB) RegisterUser(user *User) error {
 	if err != nil {
 		return fmt.Errorf("db: insert into users: %w", err)
 	}
-	_, err = d.Db.Exec(
+	_, err = d.DataBase.Exec(
 		"DELETE FROM registration_queue WHERE ID = $1",
 		&user.ID)
 	if err != nil {
@@ -144,8 +144,8 @@ func (d DB) RegisterUser(user *User) error {
 	return nil
 }
 
-func (d DB) UnregisterUser(user *User) error {
-	_, err := d.Db.Exec("DELETE FROM users WHERE id = $1",
+func (d DataBase) UnregisterUser(user *User) error {
+	_, err := d.DataBase.Exec("DELETE FROM users WHERE id = $1",
 		user.ID)
 	if err != nil {
 		return fmt.Errorf("db: delete from registration_queue: %w", err)
@@ -153,8 +153,8 @@ func (d DB) UnregisterUser(user *User) error {
 	return nil
 }
 
-func (d DB) EnableUser(id *int64) error {
-	_, err := d.Db.Exec(
+func (d DataBase) EnableUser(id *int64) error {
+	_, err := d.DataBase.Exec(
 		"UPDATE users SET Enabled = $1 WHERE ID = $2",
 		1,
 		&id)
@@ -164,8 +164,8 @@ func (d DB) EnableUser(id *int64) error {
 	return nil
 }
 
-func (d DB) DisableUser(id *int64) error {
-	_, err := d.Db.Exec(
+func (d DataBase) DisableUser(id *int64) error {
+	_, err := d.DataBase.Exec(
 		"UPDATE users SET Enabled = $1 WHERE ID = $2",
 		0,
 		&id)

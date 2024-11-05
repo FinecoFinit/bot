@@ -1,7 +1,7 @@
-package emailmng
+package email
 
 import (
-	"bot/pkg/dbmng"
+	"bot/pkg/db"
 	"bytes"
 	"fmt"
 	"github.com/pquerna/otp/totp"
@@ -22,7 +22,7 @@ type HighWay struct {
 	EmailAddr   *string
 }
 
-func (h HighWay) SendEmail(user *dbmng.User) error {
+func (h HighWay) SendEmail(user *db.User) error {
 	message := mail.NewMsg()
 	if err := message.From(*h.EmailUser); err != nil {
 		return fmt.Errorf("failed to set From address: %s", err)
@@ -51,7 +51,7 @@ func (h HighWay) SendEmail(user *dbmng.User) error {
 	return nil
 }
 
-func (h HighWay) GenConf(user *dbmng.User) *bytes.Buffer {
+func (h HighWay) GenConf(user *db.User) *bytes.Buffer {
 	buf := bytes.NewBufferString(
 		"[Interface]\r\n" +
 			"Address = " + "192.168.88." + strconv.Itoa(user.IP) + "/32\r\n" +
@@ -66,7 +66,7 @@ func (h HighWay) GenConf(user *dbmng.User) *bytes.Buffer {
 	return buf
 }
 
-func (h HighWay) GenKeyImage(user *dbmng.User) (*bytes.Buffer, error) {
+func (h HighWay) GenKeyImage(user *db.User) (*bytes.Buffer, error) {
 	key, err := totp.Generate(totp.GenerateOpts{
 		Issuer:      "test",
 		AccountName: user.UserName,

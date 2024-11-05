@@ -1,21 +1,21 @@
 package main
 
 import (
-	"bot/pkg/dbmng"
-	"bot/pkg/emailmng"
-	"bot/pkg/tgutil"
-	"bot/pkg/wgmng"
-	"bot/pkg/worker"
+	"bot/pkg/concierge"
+	"bot/pkg/db"
+	"bot/pkg/email"
+	"bot/pkg/tg"
+	"bot/pkg/wg"
 	"database/sql"
-	"github.com/rs/zerolog"
 	"os"
 	"path/filepath"
 	"strconv"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/rs/zerolog"
 	"github.com/wneessen/go-mail"
 
+	_ "github.com/mattn/go-sqlite3"
 	tele "gopkg.in/telebot.v4"
 )
 
@@ -55,7 +55,7 @@ func main() {
 	logger := zerolog.New(multiLog).With().Timestamp().Logger()
 
 	pref := tele.Settings{Token: token, Poller: &tele.LongPoller{Timeout: 10 * time.Second}}
-	tg, err := tele.NewBot(pref)
+	tgBot, err := tele.NewBot(pref)
 	if err != nil {
 		logger.Panic().Err(err).Msg("ENV: TOKEN parse error")
 	}
@@ -91,14 +91,12 @@ func main() {
 		logger.Panic().Err(err).Msg("failed to create mail client")
 	}
 
-	dataVars := worker.DataVars{
+	dataVars := concierge.DataVars{
 		AdminLogChat:       adminLogChat,
 		AdminLogChatThread: adminLogChatThread}
 
-	db := worker.DbSet{
-		DbVar:  database,
-		DbUtil: dbmng.DB{Db: database}}
-	res := worker.Resources{
+	dbSet := db.DataBase{DataBase: database}
+	res := concierge.Resources{
 		AdminDBIDs:     &aDBids,
 		UserDBIDs:      &uDBids,
 		QUserDBIDs:     &qDBids,
@@ -107,65 +105,65 @@ func main() {
 		Logger:         logger,
 	}
 
-	wg := wgmng.HighWay{
-		DbSet:              db,
-		Tg:                 tg,
+	wireguard := wg.HighWay{
+		DataBase:           dbSet,
+		Tg:                 tgBot,
 		Resources:          res,
 		AdminLogChat:       adminLogChat,
 		AdminLogChatThread: adminLogChatThread,
 		WgPreKeysDir:       wgPreKeysDir}
-	em := emailmng.HighWay{
+	em := email.HighWay{
 		WgServerIP:  &wgSerIP,
 		WgPublicKey: &wgPubKey,
 		EmailClient: emailClient,
 		EmailUser:   &emailUser,
 		EmailPass:   &emailPass,
 		EmailAddr:   &emailAddr}
-	HWtg := tgutil.HighWay{
-		DbSet:        db,
-		Tg:           tg,
+	HWtg := tg.HighWay{
+		DataBase:     dbSet,
+		Tg:           tgBot,
 		Resources:    res,
 		AllowedIPs:   wgAllowedIPs,
 		DataVars:     dataVars,
-		WGManager:    wg,
+		WGManager:    wireguard,
 		EmailManager: em}
 
-	err = db.DbUtil.GetAdminsIDs(&aDBids)
+	err = dbSet.GetAdminsIDs(&aDBids)
 	if err != nil {
 		logger.Panic().Err(err).Msg("db: failed to get admin ids")
 	}
-	err = db.DbUtil.GetUsersIDs(&uDBids)
+	err = dbSet.GetUsersIDs(&uDBids)
 	if err != nil {
 		logger.Panic().Err(err).Msg("db: failed to get user ids")
 	}
-	err = db.DbUtil.GetQueueUsersIDs(&qDBids)
+	err = dbSet.GetQueueUsersIDs(&qDBids)
 	if err != nil {
 		logger.Panic().Err(err).Msg("db: failed to get queue ids")
 	}
 
-	tg.Handle(&tele.Btn{Unique: "register_accept"}, HWtg.RegisterAccept)
+	tgBot.Handle(&tele.Btn{Unique: "register_accept"}, HWtg.RegisterAccept)
 
-	tg.Handle(&tele.Btn{Unique: "register_deny"}, HWtg.RegisterDeny)
+	tgBot.Handle(&tele.Btn{Unique: "register_deny"}, HWtg.RegisterDeny)
 
-	tg.Handle(&tele.Btn{Unique: "stop_session"}, HWtg.StopSession)
+	tgBot.Handle(&tele.Btn{Unique: "stop_session"}, HWtg.StopSession)
 
-	tg.Handle("/register", HWtg.Register)
+	tgBot.Handle("/register", HWtg.Register)
 
-	tg.Handle("/accept", HWtg.Accept)
+	tgBot.Handle("/accept", HWtg.Accept)
 
-	tg.Handle("/adduser", HWtg.AddUser)
+	tgBot.Handle("/adduser", HWtg.AddUser)
 
-	tg.Handle("/deluser", HWtg.DelUser)
+	tgBot.Handle("/deluser", HWtg.DelUser)
 
-	tg.Handle("/sendcreds", HWtg.SendCreds)
+	tgBot.Handle("/sendcreds", HWtg.SendCreds)
 
-	tg.Handle("/enable", HWtg.Enable)
+	tgBot.Handle("/enable", HWtg.Enable)
 
-	tg.Handle("/disable", HWtg.Disable)
+	tgBot.Handle("/disable", HWtg.Disable)
 
-	tg.Handle("/get", HWtg.Get)
+	tgBot.Handle("/get", HWtg.Get)
 
-	tg.Handle(tele.OnText, HWtg.Verification)
+	tgBot.Handle(tele.OnText, HWtg.Verification)
 
-	tg.Start()
+	tgBot.Start()
 }
