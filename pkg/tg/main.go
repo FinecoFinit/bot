@@ -10,11 +10,11 @@ import (
 )
 
 type HighWay struct {
-	DataBase     db.DataBase
+	DataBase     *db.DataBase
 	Tg           *tele.Bot
-	Resources    concierge.Resources
+	Resources    *concierge.Resources
 	AllowedIPs   string
-	DataVars     concierge.DataVars
-	EmailManager email.HighWay
-	WGManager    wg.HighWay
+	DataVars     *concierge.DataVars
+	EmailManager *email.HighWay
+	WGManager    *wg.HighWay
 }

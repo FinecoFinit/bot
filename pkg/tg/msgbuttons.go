@@ -58,11 +58,6 @@ func (h HighWay) RegisterAccept(c tele.Context) error {
 		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
 	}
 
-	_, err = h.Tg.Send(tele.ChatID(user.ID), "Регистрация завершена, далее требуется только ввод двухфакторного кода")
-	if err != nil {
-		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
-	}
-
 	err = h.DataBase.GetUsersIDs(h.Resources.UserDBIDs)
 	if err != nil {
 		h.Resources.Logger.Error().Err(err).Msg("accept")

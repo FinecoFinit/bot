@@ -106,12 +106,11 @@ func main() {
 	}
 
 	wireguard := wg.HighWay{
-		DataBase:           dbSet,
-		Tg:                 tgBot,
-		Resources:          res,
-		AdminLogChat:       adminLogChat,
-		AdminLogChatThread: adminLogChatThread,
-		WgPreKeysDir:       wgPreKeysDir}
+		DataBase:     &dbSet,
+		DataVars:     &dataVars,
+		Tg:           tgBot,
+		Resources:    &res,
+		WgPreKeysDir: wgPreKeysDir}
 	em := email.HighWay{
 		WgServerIP:  &wgSerIP,
 		WgPublicKey: &wgPubKey,
@@ -120,13 +119,13 @@ func main() {
 		EmailPass:   &emailPass,
 		EmailAddr:   &emailAddr}
 	HWtg := tg.HighWay{
-		DataBase:     dbSet,
+		DataBase:     &dbSet,
 		Tg:           tgBot,
-		Resources:    res,
+		Resources:    &res,
 		AllowedIPs:   wgAllowedIPs,
-		DataVars:     dataVars,
-		WGManager:    wireguard,
-		EmailManager: em}
+		DataVars:     &dataVars,
+		WGManager:    &wireguard,
+		EmailManager: &em}
 
 	err = dbSet.GetAdminsIDs(&aDBids)
 	if err != nil {
@@ -162,6 +161,8 @@ func main() {
 	tgBot.Handle("/disable", HWtg.Disable)
 
 	tgBot.Handle("/get", HWtg.Get)
+
+	tgBot.Handle("/edit", HWtg.Edit)
 
 	tgBot.Handle(tele.OnText, HWtg.Verification)
 

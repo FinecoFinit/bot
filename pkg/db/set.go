@@ -174,3 +174,19 @@ func (d DataBase) DisableUser(id *int64) error {
 	}
 	return nil
 }
+
+func (d DataBase) Edit(user *User, param string, val string) error {
+	switch param {
+	case "allowedips":
+		_, err := d.DataBase.Exec("UPDATE users SET AllowedIPs = $1 WHERE ID = $2", val, user.ID)
+		if err != nil {
+			return fmt.Errorf("db: failed to edit row: %w", err)
+		}
+	case "ip":
+		_, err := d.DataBase.Exec("UPDATE users SET IP = $1 WHERE ID = $2", val, user.ID)
+		if err != nil {
+			return fmt.Errorf("db: failed to edit row: %w", err)
+		}
+	}
+	return nil
+}

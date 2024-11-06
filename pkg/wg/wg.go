@@ -17,12 +17,11 @@ import (
 )
 
 type HighWay struct {
-	DataBase           db.DataBase
-	Tg                 *tele.Bot
-	Resources          concierge.Resources
-	AdminLogChat       int64
-	AdminLogChatThread int
-	WgPreKeysDir       string
+	DataBase     *db.DataBase
+	DataVars     *concierge.DataVars
+	Tg           *tele.Bot
+	Resources    *concierge.Resources
+	WgPreKeysDir string
 }
 
 func (h HighWay) WgStartSession(user *db.User) error {
@@ -51,8 +50,8 @@ func (h HighWay) WgStartSession(user *db.User) error {
 		return fmt.Errorf("wgmng: failed to start session: %w", err)
 	}
 
-	h.Resources.MessageManager[user.ID], err = h.Tg.Send(tele.ChatID(h.AdminLogChat), "Создана сессия для: "+user.UserName, &tele.SendOptions{
-		ThreadID: h.AdminLogChatThread,
+	h.Resources.MessageManager[user.ID], err = h.Tg.Send(tele.ChatID(h.DataVars.AdminLogChat), "Создана сессия для: "+user.UserName, &tele.SendOptions{
+		ThreadID: h.DataVars.AdminLogChatThread,
 		ReplyMarkup: &tele.ReplyMarkup{
 			OneTimeKeyboard: true,
 			InlineKeyboard: [][]tele.InlineButton{{
@@ -139,11 +138,15 @@ func (h HighWay) WgStopSession(user *db.User, statusMsg *tele.Message) error {
 
 	_, err = h.Tg.Edit(statusMsg, statusMsg.Text+"Сессия завершена", &tele.SendOptions{ParseMode: "MarkdownV2"})
 	if err != nil {
-		_, err = h.Tg.Send(tele.ChatID(h.AdminLogChat), err.Error(), &tele.SendOptions{ReplyTo: statusMsg, ThreadID: statusMsg.ThreadID})
+		_, err = h.Tg.Send(tele.ChatID(h.DataVars.AdminLogChat), err.Error(), &tele.SendOptions{ReplyTo: statusMsg, ThreadID: statusMsg.ThreadID})
 		if err != nil {
 			return fmt.Errorf("tg: failed to edit message %d: %v \n", user.ID, err)
 		}
 		return fmt.Errorf("wg: tg: failed to edit message: %w", err)
+	}
+	_, err = h.Tg.Send(tele.ChatID(user.ID), "Сессия завершена")
+	if err != nil {
+		return fmt.Errorf("tg: failed to send session end message: %w", err)
 	}
 
 	h.Resources.SessionManager[user.ID] = false
