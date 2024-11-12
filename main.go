@@ -7,9 +7,9 @@ import (
 	"bot/pkg/tg"
 	"bot/pkg/wg"
 	"database/sql"
+	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -21,28 +21,25 @@ import (
 
 func main() {
 	var (
-		aDBids               []int64
-		uDBids               []int64
-		qDBids               []int64
-		adminLogChat         int64
-		sessionManager       = make(map[int64]bool)
-		messageManager       = make(map[int64]*tele.Message)
-		wgSerIP              = os.Getenv("WG_SER_IP")
-		wgPubKey             = os.Getenv("WG_SER_PUBK")
-		wgPreKeysDir         = os.Getenv("WG_PREKEYS_DIR")
-		wgAllowedIPs         = os.Getenv("WG_ALLOWED_IPS")
-		token                = os.Getenv("TOKEN")
-		adminLogChatID       = os.Getenv("ADMIN_LOG_CHAT")
-		adminLogChatThreadID = os.Getenv("ADMIN_LOG_CHAT_THREAD")
-		dbPath               = os.Getenv("DB")
-		emailUser            = os.Getenv("EMAIL_LOGIN")
-		emailPass            = os.Getenv("EMAIL_PASS")
-		emailAddr            = os.Getenv("EMAIL_ADDR")
-		logFilePath          = os.Getenv("LOG_FILE")
+		aDBids         []int64
+		uDBids         []int64
+		qDBids         []int64
+		sessionManager = make(map[int64]bool)
+		messageManager = make(map[int64]*tele.Message)
+		configPath     = os.Getenv("CONFIG_PATH")
+		config         concierge.Config
 	)
 
-	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
-	multiLog := zerolog.MultiLevelWriter(os.Stdout, logFile)
+	yamlData, err := os.ReadFile(configPath)
+	if err != nil {
+		panic(err)
+	}
+	err = yaml.Unmarshal(yamlData, &config)
+	if err != nil {
+		panic(err)
+	}
+
+	logFile, err := os.OpenFile(config.LogFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
 	if err != nil {
 		panic(err)
 	}
@@ -52,25 +49,15 @@ func main() {
 			panic(err)
 		}
 	}(logFile)
-	logger := zerolog.New(multiLog).With().Timestamp().Logger()
+	logger := zerolog.New(zerolog.MultiLevelWriter(os.Stdout, logFile)).With().Timestamp().Logger()
 
-	pref := tele.Settings{Token: token, Poller: &tele.LongPoller{Timeout: 10 * time.Second}}
+	pref := tele.Settings{Token: config.TgToken, Poller: &tele.LongPoller{Timeout: 10 * time.Second}}
 	tgBot, err := tele.NewBot(pref)
 	if err != nil {
 		logger.Panic().Err(err).Msg("ENV: TOKEN parse error")
 	}
 
-	adminLogChat, err = strconv.ParseInt(adminLogChatID, 10, 64)
-	if err != nil {
-		logger.Panic().Err(err).Msg("ENV: ADMIN_LOG_CHAT parse error")
-	}
-
-	adminLogChatThread, err := strconv.Atoi(adminLogChatThreadID)
-	if err != nil {
-		logger.Panic().Err(err).Msg("ENV: ADMIN_LOG_CHAT_THREAD parse error")
-	}
-
-	location, err := filepath.Abs(dbPath)
+	location, err := filepath.Abs(config.DbPath)
 	if err != nil {
 		logger.Panic().Err(err).Msg("db file: file doesn't exists or corrupted")
 	}
@@ -81,19 +68,22 @@ func main() {
 	}
 
 	emailClient, err := mail.NewClient(
-		emailAddr,
+		config.EmailAddress,
 		mail.WithPort(587),
 		mail.WithSSL(),
 		mail.WithSMTPAuth(mail.SMTPAuthPlain),
-		mail.WithUsername(emailUser),
-		mail.WithPassword(emailPass))
+		mail.WithUsername(config.EmailUser),
+		mail.WithPassword(config.EmailPassword))
 	if err != nil {
 		logger.Panic().Err(err).Msg("failed to create mail client")
 	}
 
 	dataVars := concierge.DataVars{
-		AdminLogChat:       adminLogChat,
-		AdminLogChatThread: adminLogChatThread}
+		AdminLogChat:       config.AdminWgChatID,
+		AdminLogChatThread: config.AdminWgChatThread,
+		WgDNS:              config.WgDNS,
+		WgSubNet:           config.WgSubNet,
+	}
 
 	dbSet := db.DataBase{DataBase: database}
 	res := concierge.Resources{
@@ -110,19 +100,20 @@ func main() {
 		DataVars:     &dataVars,
 		Tg:           tgBot,
 		Resources:    &res,
-		WgPreKeysDir: wgPreKeysDir}
+		WgPreKeysDir: config.WgPreKeysDir}
 	em := email.HighWay{
-		WgServerIP:  &wgSerIP,
-		WgPublicKey: &wgPubKey,
+		WgServerIP:  &config.WgPublicIP,
+		WgPublicKey: &config.WgPublicKey,
 		EmailClient: emailClient,
-		EmailUser:   &emailUser,
-		EmailPass:   &emailPass,
-		EmailAddr:   &emailAddr}
+		EmailUser:   &config.EmailUser,
+		EmailPass:   &config.EmailPassword,
+		EmailAddr:   &config.EmailAddress,
+		DataVars:    dataVars}
 	HWtg := tg.HighWay{
 		DataBase:     &dbSet,
 		Tg:           tgBot,
 		Resources:    &res,
-		AllowedIPs:   wgAllowedIPs,
+		AllowedIPs:   config.WgAllowedIps,
 		DataVars:     &dataVars,
 		WGManager:    &wireguard,
 		EmailManager: &em}

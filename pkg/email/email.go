@@ -1,6 +1,7 @@
 package email
 
 import (
+	"bot/pkg/concierge"
 	"bot/pkg/db"
 	"bytes"
 	"fmt"
@@ -17,6 +18,7 @@ type HighWay struct {
 	WgServerIP  *string
 	WgPublicKey *string
 	EmailClient *mail.Client
+	DataVars    concierge.DataVars
 	EmailUser   *string
 	EmailPass   *string
 	EmailAddr   *string
@@ -54,9 +56,9 @@ func (h HighWay) SendEmail(user *db.User) error {
 func (h HighWay) GenConf(user *db.User) *bytes.Buffer {
 	buf := bytes.NewBufferString(
 		"[Interface]\r\n" +
-			"Address = " + "192.168.88." + strconv.Itoa(user.IP) + "/32\r\n" +
+			"Address = " + h.DataVars.WgSubNet + strconv.Itoa(user.IP) + "/32\r\n" +
 			"PrivateKey = " + user.Peer + "\r\n" +
-			"DNS = 192.168.28.15\r\n" +
+			"DNS = " + h.DataVars.WgDNS + "\r\n" +
 			"\r\n" +
 			"[Peer]\r\nPublicKey = " + *h.WgPublicKey + "\r\n" +
 			"PresharedKey = " + user.PeerPre + "\r\n" +
