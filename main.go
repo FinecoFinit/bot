@@ -9,7 +9,6 @@ import (
 	"database/sql"
 	"gopkg.in/yaml.v3"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -51,18 +50,12 @@ func main() {
 	}(logFile)
 	logger := zerolog.New(zerolog.MultiLevelWriter(os.Stdout, logFile)).With().Timestamp().Logger()
 
-	pref := tele.Settings{Token: config.TgToken, Poller: &tele.LongPoller{Timeout: 10 * time.Second}}
-	tgBot, err := tele.NewBot(pref)
+	tgBot, err := tele.NewBot(tele.Settings{Token: config.TgToken, Poller: &tele.LongPoller{Timeout: 10 * time.Second}})
 	if err != nil {
 		logger.Panic().Err(err).Msg("ENV: TOKEN parse error")
 	}
 
-	location, err := filepath.Abs(config.DbPath)
-	if err != nil {
-		logger.Panic().Err(err).Msg("db file: file doesn't exists or corrupted")
-	}
-
-	database, err := sql.Open("sqlite3", location)
+	database, err := sql.Open("sqlite3", config.DbPath)
 	if err != nil {
 		logger.Panic().Err(err).Msg("db: failed to open db")
 	}
@@ -102,19 +95,19 @@ func main() {
 		Resources:    &res,
 		WgPreKeysDir: config.WgPreKeysDir}
 	em := email.HighWay{
+		DataVars:    dataVars,
 		WgServerIP:  &config.WgPublicIP,
 		WgPublicKey: &config.WgPublicKey,
 		EmailClient: emailClient,
 		EmailUser:   &config.EmailUser,
 		EmailPass:   &config.EmailPassword,
-		EmailAddr:   &config.EmailAddress,
-		DataVars:    dataVars}
+		EmailAddr:   &config.EmailAddress}
 	HWtg := tg.HighWay{
 		DataBase:     &dbSet,
+		DataVars:     &dataVars,
 		Tg:           tgBot,
 		Resources:    &res,
 		AllowedIPs:   config.WgAllowedIps,
-		DataVars:     &dataVars,
 		WGManager:    &wireguard,
 		EmailManager: &em}
 
