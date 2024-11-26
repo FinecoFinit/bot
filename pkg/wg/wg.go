@@ -44,7 +44,7 @@ func (h HighWay) WgStartSession(user *db.User) error {
 		"wg0-server",
 		"peer", user.PeerPub,
 		"preshared-key", preK,
-		"allowed-ips", "192.168.186."+strconv.Itoa(user.IP)+"/32")
+		"allowed-ips", h.DataVars.WgSubNet+strconv.Itoa(user.IP)+"/32")
 	err = wgCommand.Run()
 	if err != nil {
 		return fmt.Errorf("wgmng: failed to start session: %w", err)
