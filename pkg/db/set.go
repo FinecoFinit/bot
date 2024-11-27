@@ -99,9 +99,9 @@ func (d DataBase) RegisterQueue(id int64, user string) error {
 		id,
 		user,
 		key.Secret(),
-		strings.TrimSuffix(string(wgKey[:]), "\r\n"),
-		strings.TrimSuffix(string(wgKeyPre[:]), "\r\n"),
-		strings.TrimSuffix(string(wgKeyPub[:]), "\r\n"),
+		strings.TrimSuffix(string(wgKey[:]), "\n"),
+		strings.TrimSuffix(string(wgKeyPre[:]), "\n"),
+		strings.TrimSuffix(string(wgKeyPub[:]), "\n"),
 		IPsOctet[0])
 	if err != nil {
 		return fmt.Errorf("db: insert into registration_queue: %w", err)
