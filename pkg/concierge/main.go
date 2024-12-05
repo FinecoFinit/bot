@@ -10,6 +10,7 @@ type DataVars struct {
 	AdminLogChatThread int
 	WgDNS              string
 	WgSubNet           string
+	TotpVendor         string
 }
 
 type Resources struct {
@@ -36,4 +37,6 @@ type Config struct {
 	EmailPassword     string `yaml:"email_password"`
 	EmailAddress      string `yaml:"email_address"`
 	LogFilePath       string `yaml:"log_file_path"`
+	ConfPrefix        string `yaml:"conf_prefix"`
+	TotpVendor        string `yaml:"totp_vendor"`
 }

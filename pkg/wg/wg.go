@@ -1,7 +1,6 @@
 package wg
 
 import (
-	"bot/pkg/concierge"
 	"bot/pkg/db"
 	"fmt"
 	"os"
@@ -15,14 +14,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	tele "gopkg.in/telebot.v4"
 )
-
-type HighWay struct {
-	DataBase     *db.DataBase
-	DataVars     *concierge.DataVars
-	Tg           *tele.Bot
-	Resources    *concierge.Resources
-	WgPreKeysDir string
-}
 
 func (h HighWay) WgStartSession(user *db.User) error {
 	preK := path.Join(h.WgPreKeysDir, strconv.FormatInt(user.ID, 10))
@@ -66,10 +57,10 @@ func (h HighWay) WgStartSession(user *db.User) error {
 	h.Resources.SessionManager[user.ID] = true
 	go h.Session(user, time.Now(), h.Resources.MessageManager[user.ID])
 
-	//err = os.Remove(preK)
-	//if err != nil {
-	//	return fmt.Errorf("wgmng: failed to delete pre-shared key from directory: %w", err)
-	//}
+	err = os.Remove(preK)
+	if err != nil {
+		return fmt.Errorf("wgmng: failed to delete pre-shared key from directory: %w", err)
+	}
 
 	return nil
 }
@@ -94,7 +85,7 @@ func (h HighWay) Session(user *db.User, t time.Time, statusMsg *tele.Message) {
 		statusMsgText := "Создана сессия: \n" + " 👔: " + strings.ReplaceAll(user.UserName, ".", "\\.") + "\n" + " 🌍: ``" + strings.ReplaceAll(outStr[3], ".", "\\.") + "``\n" + " ⏬: " + outStr[5] + "\n" + " ⏫: " + outStr[6] + "\n"
 
 		if statusMsg.Text != statusMsgText {
-			_, err = h.Tg.Edit(statusMsg, statusMsgText, &tele.SendOptions{
+			_, err = h.Tg.Edit(statusMsg, strings.ReplaceAll(statusMsgText, "+", "\\+"), &tele.SendOptions{
 				ParseMode: "MarkdownV2",
 				ReplyMarkup: &tele.ReplyMarkup{
 					OneTimeKeyboard: true,

@@ -76,9 +76,10 @@ func main() {
 		AdminLogChatThread: config.AdminWgChatThread,
 		WgDNS:              config.WgDNS,
 		WgSubNet:           config.WgSubNet,
+		TotpVendor:         config.TotpVendor,
 	}
 
-	dbSet := db.DataBase{DataBase: database}
+	dbSet := db.DataBase{DataBase: database, DataVars: &dataVars}
 	res := concierge.Resources{
 		AdminDBIDs:     &aDBids,
 		UserDBIDs:      &uDBids,
@@ -101,7 +102,8 @@ func main() {
 		EmailClient: emailClient,
 		EmailUser:   &config.EmailUser,
 		EmailPass:   &config.EmailPassword,
-		EmailAddr:   &config.EmailAddress}
+		EmailAddr:   &config.EmailAddress,
+		ConfPrefix:  &config.ConfPrefix}
 	HWtg := tg.HighWay{
 		DataBase:     &dbSet,
 		DataVars:     &dataVars,
@@ -110,6 +112,8 @@ func main() {
 		AllowedIPs:   config.WgAllowedIps,
 		WGManager:    &wireguard,
 		EmailManager: &em}
+
+	dbSet.WireGuard = &wireguard
 
 	err = dbSet.GetAdminsIDs(&aDBids)
 	if err != nil {
@@ -129,6 +133,10 @@ func main() {
 	tgBot.Handle(&tele.Btn{Unique: "register_deny"}, HWtg.RegisterDeny)
 
 	tgBot.Handle(&tele.Btn{Unique: "stop_session"}, HWtg.StopSession)
+
+	tgBot.Handle(&tele.Btn{Unique: "send_creds"}, HWtg.SendCredsBtn)
+
+	tgBot.Handle("/start", HWtg.Start)
 
 	tgBot.Handle("/register", HWtg.Register)
 

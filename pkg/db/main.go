@@ -1,6 +1,10 @@
 package db
 
-import "database/sql"
+import (
+	"bot/pkg/concierge"
+	"bot/pkg/wg"
+	"database/sql"
+)
 
 type User struct {
 	ID               int64
@@ -32,5 +36,7 @@ type QueueUser struct {
 }
 
 type DataBase struct {
-	DataBase *sql.DB
+	DataBase  *sql.DB
+	WireGuard *wg.HighWay
+	DataVars  *concierge.DataVars
 }

@@ -1,7 +1,6 @@
 package email
 
 import (
-	"bot/pkg/concierge"
 	"bot/pkg/db"
 	"bytes"
 	"fmt"
@@ -9,20 +8,11 @@ import (
 	"image/png"
 	"io"
 	"strconv"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/wneessen/go-mail"
 )
-
-type HighWay struct {
-	WgServerIP  *string
-	WgPublicKey *string
-	EmailClient *mail.Client
-	DataVars    concierge.DataVars
-	EmailUser   *string
-	EmailPass   *string
-	EmailAddr   *string
-}
 
 func (h HighWay) SendEmail(user *db.User) error {
 	message := mail.NewMsg()
@@ -34,7 +24,7 @@ func (h HighWay) SendEmail(user *db.User) error {
 	}
 	message.Subject("Wireguard config")
 	message.SetBodyString(mail.TypeTextPlain, "Wireguard config file for "+user.UserName)
-	err := message.AttachReader("wireguard.conf", io.Reader(h.GenConf(user)))
+	err := message.AttachReader("wireguard_"+strings.Trim(user.UserName, "@wooppay.com")+"_"+*h.ConfPrefix+".conf", io.Reader(h.GenConf(user)))
 	if err != nil {
 		return err
 	}
@@ -70,7 +60,7 @@ func (h HighWay) GenConf(user *db.User) *bytes.Buffer {
 
 func (h HighWay) GenKeyImage(user *db.User) (*bytes.Buffer, error) {
 	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      "test",
+		Issuer:      h.DataVars.TotpVendor,
 		AccountName: user.UserName,
 		Secret:      []byte(user.TOTPSecret)})
 	if err != nil {

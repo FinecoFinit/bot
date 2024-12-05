@@ -1,107 +1,39 @@
 package db
 
 import (
-	"bytes"
-	"database/sql"
 	"fmt"
-	"os/exec"
-	"slices"
-	"strconv"
-	"strings"
-
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pquerna/otp/totp"
 )
 
 func (d DataBase) RegisterQueue(id int64, user string) error {
-	var (
-		IPsPool []int
-		IPs     []string
-	)
-
 	// Create TOTP secret
 	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      "test",
+		Issuer:      d.DataVars.TotpVendor,
 		AccountName: user,
 	})
 	if err != nil {
 		return fmt.Errorf("RegisterQueue: failed to get generate totp key: %w", err)
 	}
 
-	wgCom := exec.Command("wg", "genkey")
-	wgKey, err := wgCom.Output()
+	wgKey, wgKeyPre, wgKeyPub, err := d.WireGuard.Gen()
 	if err != nil {
-		return fmt.Errorf("RegisterQueue: failed to get generate peer key: %w", err)
+		return fmt.Errorf("RegisterQueue: failed to generate wireguard key: %w", err)
 	}
 
-	wgCom = exec.Command("wg", "genpsk")
-	wgKeyPre, err := wgCom.Output()
+	IPsOctet, err := d.CalculateIP()
 	if err != nil {
-		return fmt.Errorf("RegisterQueue: failed to get generate peer preshared key: %w", err)
+		return fmt.Errorf("RegisterQueue: failed to calculate IP address: %w", err)
 	}
-
-	wgCom = exec.Command("wg", "pubkey")
-	wgCom.Stdin = bytes.NewBuffer(wgKey)
-	wgKeyPub, err := wgCom.Output()
-	if err != nil {
-		return fmt.Errorf("RegisterQueue: failed to get generate pub key: %w", err)
-	}
-
-	// Calculate IP address
-	qIProw, err := d.DataBase.Query("SELECT IP from registration_queue")
-	if err != nil {
-		return fmt.Errorf("RegisterQueue: db: failed to query IPs from registration_queue: %w", err)
-	}
-	defer func(qIProw *sql.Rows) {
-		err := qIProw.Close()
-		if err != nil {
-			fmt.Printf("RegisterQueue: failed to close DB rows: %v", err)
-		}
-	}(qIProw)
-	for qIProw.Next() {
-		var IP string
-		err = qIProw.Scan(&IP)
-		if err != nil {
-			return fmt.Errorf("func RegisterQueue: db: failed to get row value: %w", err)
-		}
-		IPs = append(IPs, IP)
-	}
-
-	uIProw, err := d.DataBase.Query("SELECT IP from users")
-	if err != nil {
-		return fmt.Errorf("func RegisterQueue: db: failed to query IPs from users: %w", err)
-	}
-	defer func(uIProw *sql.Rows) {
-		err := uIProw.Close()
-		if err != nil {
-			fmt.Printf("RegisterQueue: failed to close DB rows: %v", err)
-		}
-	}(uIProw)
-	for uIProw.Next() {
-		var IP string
-		err = uIProw.Scan(&IP)
-		if err != nil {
-			return fmt.Errorf("func RegisterQueue: db: failed to get row value: %w", err)
-		}
-		IPs = append(IPs, IP)
-	}
-
-	for i := 130; i < 255; i++ {
-		IPsPool = append(IPsPool, i)
-	}
-
-	IPsOctet := slices.DeleteFunc(IPsPool, func(n int) bool {
-		return slices.Contains(IPs, strconv.Itoa(n))
-	})
 
 	_, err = d.DataBase.Exec(
 		"INSERT INTO registration_queue(ID, UserName, TOTPSecret, Peer, PeerPre, PeerPub, IP) VALUES($1,$2,$3,$4,$5,$6,$7)",
 		id,
 		user,
 		key.Secret(),
-		strings.TrimSuffix(string(wgKey[:]), "\n"),
-		strings.TrimSuffix(string(wgKeyPre[:]), "\n"),
-		strings.TrimSuffix(string(wgKeyPub[:]), "\n"),
+		wgKey,
+		wgKeyPre,
+		wgKeyPub,
 		IPsOctet[0])
 	if err != nil {
 		return fmt.Errorf("db: insert into registration_queue: %w", err)
@@ -187,6 +119,9 @@ func (d DataBase) Edit(user *User, param string, val string) error {
 		if err != nil {
 			return fmt.Errorf("db: failed to edit row: %w", err)
 		}
+	default:
+		return fmt.Errorf("unknown param: %s", param)
+
 	}
 	return nil
 }

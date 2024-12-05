@@ -12,6 +12,10 @@ import (
 	tele "gopkg.in/telebot.v4"
 )
 
+func (h HighWay) Start(c tele.Context) error {
+	return c.Send("Hello")
+}
+
 func (h HighWay) Register(c tele.Context) error {
 
 	if c.Args() == nil {
@@ -341,7 +345,7 @@ func (h HighWay) Get(c tele.Context) error {
 		h.Resources.Logger.Error().Err(err).Msg("get")
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
-	return c.Send(strconv.FormatInt(user.ID, 10)+" | "+user.UserName+" | "+user.AllowedIPs+" | "+"192.168.88."+strconv.Itoa(user.IP), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+	return c.Send(strconv.FormatInt(user.ID, 10)+" | "+user.UserName+" | "+user.AllowedIPs+" | "+h.DataVars.WgSubNet+strconv.Itoa(user.IP), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 }
 
 func (h HighWay) Verification(c tele.Context) error {
@@ -365,7 +369,7 @@ func (h HighWay) Verification(c tele.Context) error {
 	}
 
 	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      "test",
+		Issuer:      h.DataVars.TotpVendor,
 		AccountName: user.UserName,
 		Secret:      []byte(user.TOTPSecret)})
 	if err != nil {

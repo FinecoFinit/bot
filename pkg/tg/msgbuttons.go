@@ -53,7 +53,15 @@ func (h HighWay) RegisterAccept(c tele.Context) error {
 	}
 	h.Resources.Logger.Info().Msg("user: " + user.UserName + " with id: " + strconv.FormatInt(user.ID, 10) + " registered")
 
-	_, err = h.Tg.Edit(c.Message(), c.Message().Text+"\nПользователь добавлен")
+	_, err = h.Tg.Edit(c.Message(), c.Message().Text+"\nПользователь добавлен", &tele.SendOptions{
+		ReplyMarkup: &tele.ReplyMarkup{
+			OneTimeKeyboard: true,
+			InlineKeyboard: [][]tele.InlineButton{{
+				tele.InlineButton{
+					Unique: "send_creds",
+					Text:   "Отправить креды",
+					Data:   strconv.FormatInt(user.ID, 10)}}}},
+	})
 	if err != nil {
 		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
 	}
@@ -144,4 +152,19 @@ func (h HighWay) StopSession(c tele.Context) error {
 	}
 
 	return c.Respond(&tele.CallbackResponse{Text: "Сессия пользователя " + user.UserName + " остановлена", ShowAlert: false})
+}
+
+func (h HighWay) SendCredsBtn(c tele.Context) error {
+	id, err := strconv.ParseInt(c.Data(), 10, 64)
+	user, err := h.DataBase.GetUser(&id)
+	if err != nil {
+		h.Resources.Logger.Error().Err(err).Msg("send_creds_btn")
+		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
+	}
+	err = h.EmailManager.SendEmail(&user)
+	if err != nil {
+		h.Resources.Logger.Error().Err(err).Msg("send_creds_btn")
+		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
+	}
+	return c.Respond(&tele.CallbackResponse{Text: "Креды отправлены", ShowAlert: false})
 }
