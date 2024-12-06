@@ -1,7 +1,7 @@
 package email
 
 import (
-	"bot/pkg/db"
+	"bot/concierge"
 	"bytes"
 	"fmt"
 	"github.com/pquerna/otp/totp"
@@ -14,9 +14,14 @@ import (
 	"github.com/wneessen/go-mail"
 )
 
-func (h HighWay) SendEmail(user *db.User) error {
+type Email struct {
+	Config      concierge.Config
+	EmailClient *mail.Client
+}
+
+func (e Email) SendEmail(user *concierge.User) error {
 	message := mail.NewMsg()
-	if err := message.From(*h.EmailUser); err != nil {
+	if err := message.From(e.Config.EmailUser); err != nil {
 		return fmt.Errorf("failed to set From address: %s", err)
 	}
 	if err := message.To(user.UserName); err != nil {
@@ -24,11 +29,11 @@ func (h HighWay) SendEmail(user *db.User) error {
 	}
 	message.Subject("Wireguard config")
 	message.SetBodyString(mail.TypeTextPlain, "Wireguard config file for "+user.UserName)
-	err := message.AttachReader("wireguard_"+strings.Trim(user.UserName, "@wooppay.com")+"_"+*h.ConfPrefix+".conf", io.Reader(h.GenConf(user)))
+	err := message.AttachReader("wireguard_"+strings.Trim(user.UserName, "@wooppay.com")+"_"+e.Config.ConfPrefix+".conf", io.Reader(e.GenConf(user)))
 	if err != nil {
 		return err
 	}
-	img, err := h.GenKeyImage(user)
+	img, err := e.GenKeyImage(user)
 	if err != nil {
 		return err
 	}
@@ -37,30 +42,30 @@ func (h HighWay) SendEmail(user *db.User) error {
 		return err
 	}
 
-	if err := h.EmailClient.DialAndSend(message); err != nil {
+	if err := e.EmailClient.DialAndSend(message); err != nil {
 		return fmt.Errorf("failed to send mail: %s", err)
 	}
 	return nil
 }
 
-func (h HighWay) GenConf(user *db.User) *bytes.Buffer {
+func (e Email) GenConf(user *concierge.User) *bytes.Buffer {
 	buf := bytes.NewBufferString(
 		"[Interface]\r\n" +
-			"Address = " + h.DataVars.WgSubNet + strconv.Itoa(user.IP) + "/32\r\n" +
+			"Address = " + e.Config.WgSubNet + strconv.Itoa(user.IP) + "/32\r\n" +
 			"PrivateKey = " + user.Peer + "\r\n" +
-			"DNS = " + h.DataVars.WgDNS + "\r\n" +
+			"DNS = " + e.Config.WgDNS + "\r\n" +
 			"\r\n" +
-			"[Peer]\r\nPublicKey = " + *h.WgPublicKey + "\r\n" +
+			"[Peer]\r\nPublicKey = " + e.Config.WgPublicKey + "\r\n" +
 			"PresharedKey = " + user.PeerPre + "\r\n" +
 			"AllowedIPs = " + user.AllowedIPs + "\r\n" +
-			"Endpoint = " + *h.WgServerIP + "\r\n" +
+			"Endpoint = " + e.Config.WgPublicIP + "\r\n" +
 			"PersistentKeepalive = 15")
 	return buf
 }
 
-func (h HighWay) GenKeyImage(user *db.User) (*bytes.Buffer, error) {
+func (e Email) GenKeyImage(user *concierge.User) (*bytes.Buffer, error) {
 	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      h.DataVars.TotpVendor,
+		Issuer:      e.Config.TotpVendor,
 		AccountName: user.UserName,
 		Secret:      []byte(user.TOTPSecret)})
 	if err != nil {

@@ -1,13 +1,23 @@
-package db
+package storage
 
 import (
+	"bot/concierge"
+	"bot/service/wg"
 	"database/sql"
 	"fmt"
-	_ "github.com/mattn/go-sqlite3"
+	"time"
+
+	"github.com/pquerna/otp/totp"
 )
 
-func (d DataBase) GetUsers() ([]User, error) {
-	rows, err := d.DataBase.Query("SELECT * FROM users")
+type MySql struct {
+	MySql     *sql.DB
+	Wireguard *wg.WireGuard
+	Config    concierge.Config
+}
+
+func (d MySql) GetUsers() ([]concierge.User, error) {
+	rows, err := d.MySql.Query("SELECT * FROM users")
 	if err != nil {
 		return nil, fmt.Errorf("db: query failed: %w", err)
 	}
@@ -18,7 +28,7 @@ func (d DataBase) GetUsers() ([]User, error) {
 		}
 	}(rows)
 
-	var users []User
+	var users []concierge.User
 
 	for rows.Next() {
 		var (
@@ -49,7 +59,7 @@ func (d DataBase) GetUsers() ([]User, error) {
 		if err != nil {
 			return nil, fmt.Errorf("db: failed to scan row: %w", err)
 		}
-		users = append(users, User{
+		users = append(users, concierge.User{
 			ID:               ID,
 			UserName:         UserName,
 			Enabled:          Enabled,
@@ -69,9 +79,9 @@ func (d DataBase) GetUsers() ([]User, error) {
 	return users, nil
 }
 
-func (d DataBase) GetUser(id *int64) (User, error) {
-	var user User
-	rows, err := d.DataBase.Query(
+func (d MySql) GetUser(id *int64) (concierge.User, error) {
+	var user concierge.User
+	rows, err := d.MySql.Query(
 		"SELECT * FROM users WHERE id = $1",
 		&id)
 	if err != nil {
@@ -113,7 +123,7 @@ func (d DataBase) GetUser(id *int64) (User, error) {
 		if err != nil {
 			return user, fmt.Errorf("db: scan row: %w", err)
 		}
-		user = User{
+		user = concierge.User{
 			ID:               ID,
 			UserName:         UserName,
 			Enabled:          Enabled,
@@ -132,9 +142,9 @@ func (d DataBase) GetUser(id *int64) (User, error) {
 	return user, nil
 }
 
-func (d DataBase) GetUserName(u *string) (User, error) {
-	var user User
-	rows, err := d.DataBase.Query(
+func (d MySql) GetUserName(u *string) (concierge.User, error) {
+	var user concierge.User
+	rows, err := d.MySql.Query(
 		"SELECT * FROM users WHERE UserName like $1",
 		"%"+*u+"%")
 	if err != nil {
@@ -176,7 +186,7 @@ func (d DataBase) GetUserName(u *string) (User, error) {
 		if err != nil {
 			return user, fmt.Errorf("db: scan row: %w", err)
 		}
-		user = User{
+		user = concierge.User{
 			ID:               ID,
 			UserName:         UserName,
 			Enabled:          Enabled,
@@ -195,7 +205,7 @@ func (d DataBase) GetUserName(u *string) (User, error) {
 	return user, nil
 }
 
-func (d DataBase) GetUsersIDs(ids *[]int64) error {
+func (d MySql) GetUsersIDs(ids *[]int64) error {
 	usersIDs, err := d.GetUsers()
 	if err != nil {
 		return fmt.Errorf("db: failed to get user ids: %w", err)
@@ -207,8 +217,8 @@ func (d DataBase) GetUsersIDs(ids *[]int64) error {
 	return nil
 }
 
-func (d DataBase) GetQueueUsers() ([]QueueUser, error) {
-	rows, err := d.DataBase.Query("SELECT * FROM registration_queue")
+func (d MySql) GetQueueUsers() ([]concierge.QueueUser, error) {
+	rows, err := d.MySql.Query("SELECT * FROM registration_queue")
 	if err != nil {
 		return nil, fmt.Errorf("db: query: %w", err)
 	}
@@ -219,7 +229,7 @@ func (d DataBase) GetQueueUsers() ([]QueueUser, error) {
 		}
 	}(rows)
 
-	var qUsers []QueueUser
+	var qUsers []concierge.QueueUser
 
 	for rows.Next() {
 		var (
@@ -242,7 +252,7 @@ func (d DataBase) GetQueueUsers() ([]QueueUser, error) {
 		if err != nil {
 			return nil, fmt.Errorf("db: scan row: %w", err)
 		}
-		qUsers = append(qUsers, QueueUser{
+		qUsers = append(qUsers, concierge.QueueUser{
 			ID:       ID,
 			UserName: UserName})
 	}
@@ -253,9 +263,9 @@ func (d DataBase) GetQueueUsers() ([]QueueUser, error) {
 	return qUsers, nil
 }
 
-func (d DataBase) GetQueueUser(id *int64) (QueueUser, error) {
-	var qUser QueueUser
-	rows, err := d.DataBase.Query(
+func (d MySql) GetQueueUser(id *int64) (concierge.QueueUser, error) {
+	var qUser concierge.QueueUser
+	rows, err := d.MySql.Query(
 		"SELECT * FROM registration_queue WHERE id = $1",
 		&id)
 	if err != nil {
@@ -289,7 +299,7 @@ func (d DataBase) GetQueueUser(id *int64) (QueueUser, error) {
 		if err != nil {
 			return qUser, fmt.Errorf("db: scan row: %w", err)
 		}
-		qUser = QueueUser{
+		qUser = concierge.QueueUser{
 			ID:         ID,
 			UserName:   UserName,
 			TOTPSecret: TOTPSecret,
@@ -305,7 +315,7 @@ func (d DataBase) GetQueueUser(id *int64) (QueueUser, error) {
 	return qUser, nil
 }
 
-func (d DataBase) GetQueueUsersIDs(ids *[]int64) error {
+func (d MySql) GetQueueUsersIDs(ids *[]int64) error {
 	usersIDs, err := d.GetQueueUsers()
 	if err != nil {
 		return fmt.Errorf("db: failed to get queue users ids: %w", err)
@@ -317,8 +327,8 @@ func (d DataBase) GetQueueUsersIDs(ids *[]int64) error {
 	return nil
 }
 
-func (d DataBase) GetAdmins() ([]Admin, error) {
-	rows, err := d.DataBase.Query("SELECT * FROM admins")
+func (d MySql) GetAdmins() ([]concierge.Admin, error) {
+	rows, err := d.MySql.Query("SELECT * FROM admins")
 	if err != nil {
 		return nil, fmt.Errorf("db: query: %w", err)
 	}
@@ -329,7 +339,7 @@ func (d DataBase) GetAdmins() ([]Admin, error) {
 		}
 	}(rows)
 
-	var admins []Admin
+	var admins []concierge.Admin
 
 	for rows.Next() {
 		var (
@@ -340,7 +350,7 @@ func (d DataBase) GetAdmins() ([]Admin, error) {
 		if err != nil {
 			return nil, fmt.Errorf("db: scan row: %w", err)
 		}
-		admins = append(admins, Admin{ID: ID, UserName: UserName})
+		admins = append(admins, concierge.Admin{ID: ID, UserName: UserName})
 	}
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("db: rows: %w", err)
@@ -349,7 +359,7 @@ func (d DataBase) GetAdmins() ([]Admin, error) {
 	return admins, nil
 }
 
-func (d DataBase) GetAdminsIDs(ids *[]int64) error {
+func (d MySql) GetAdminsIDs(ids *[]int64) error {
 	adminsIDs, err := d.GetAdmins()
 	if err != nil {
 		return fmt.Errorf("db: failed to get admins ids: %w", err)
@@ -357,6 +367,192 @@ func (d DataBase) GetAdminsIDs(ids *[]int64) error {
 	*ids = nil
 	for _, a := range adminsIDs {
 		*ids = append(*ids, a.ID)
+	}
+	return nil
+}
+
+func (d MySql) GetUsersIPs() ([]int, error) {
+	var pool []int
+	qIProw, err := d.MySql.Query("SELECT IP from users")
+	if err != nil {
+		return nil, fmt.Errorf("RegisterQueue: db: failed to query IPs from registration_queue: %w", err)
+	}
+	defer func(qIProw *sql.Rows) {
+		err := qIProw.Close()
+		if err != nil {
+			fmt.Printf("RegisterQueue: failed to close DB rows: %v", err)
+		}
+	}(qIProw)
+	for qIProw.Next() {
+		var IP int
+		err = qIProw.Scan(&IP)
+		if err != nil {
+			return nil, fmt.Errorf("func RegisterQueue: db: failed to get row value: %w", err)
+		}
+		pool = append(pool, IP)
+	}
+	return pool, nil
+}
+
+func (d MySql) GetQUsersIPs() ([]int, error) {
+	var pool []int
+	qIProw, err := d.MySql.Query("SELECT IP from registration_queue")
+	if err != nil {
+		return nil, fmt.Errorf("RegisterQueue: db: failed to query IPs from registration_queue: %w", err)
+	}
+	defer func(qIProw *sql.Rows) {
+		err := qIProw.Close()
+		if err != nil {
+			fmt.Printf("RegisterQueue: failed to close DB rows: %v", err)
+		}
+	}(qIProw)
+	for qIProw.Next() {
+		var IP int
+		err = qIProw.Scan(&IP)
+		if err != nil {
+			return nil, fmt.Errorf("func RegisterQueue: db: failed to get row value: %w", err)
+		}
+		pool = append(pool, IP)
+	}
+	return pool, nil
+}
+
+func (d MySql) RegisterQueue(id int64, user string) error {
+	// Create TOTP secret
+	key, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      d.Config.TotpVendor,
+		AccountName: user,
+	})
+	if err != nil {
+		return fmt.Errorf("RegisterQueue: failed to get generate totp key: %w", err)
+	}
+
+	keys, err := d.Wireguard.GenKeys()
+	if err != nil {
+		return fmt.Errorf("RegisterQueue: failed to generate wireguard key: %w", err)
+	}
+
+	uPool, err := d.GetUsersIPs()
+	if err != nil {
+		return fmt.Errorf("RegisterQueue: failed to get users ips: %w", err)
+	}
+	quPool, err := d.GetQUsersIPs()
+	if err != nil {
+		return fmt.Errorf("RegisterQueue: failed to get queue users ips: %w", err)
+	}
+
+	_, err = d.MySql.Exec(
+		"INSERT INTO registration_queue(ID, UserName, TOTPSecret, Peer, PeerPre, PeerPub, IP) VALUES($1,$2,$3,$4,$5,$6,$7)",
+		id,
+		user,
+		key.Secret(),
+		keys.Private,
+		keys.PreShared,
+		keys.Public,
+		concierge.CalculateIP(uPool, quPool)[0])
+	if err != nil {
+		return fmt.Errorf("db: insert into registration_queue: %w", err)
+	}
+	return nil
+}
+
+func (d MySql) UnRegisterQUser(qUser *concierge.QueueUser) error {
+	_, err := d.MySql.Exec("DELETE FROM registration_queue WHERE id = $1",
+		qUser.ID)
+	if err != nil {
+		return fmt.Errorf("db: delete from registration_queue: %w", err)
+	}
+	return nil
+}
+
+func (d MySql) RegisterUser(user *concierge.User) error {
+	_, err := d.MySql.Exec(
+		"INSERT INTO users(ID, UserName, Enabled, TOTPSecret, Session, SessionTimeStamp, Peer, PeerPre, PeerPub, AllowedIPs, IP) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+		&user.ID,
+		&user.UserName,
+		&user.Enabled,
+		&user.TOTPSecret,
+		&user.Session,
+		&user.SessionTimeStamp,
+		&user.Peer,
+		&user.PeerPre,
+		&user.PeerPub,
+		&user.AllowedIPs,
+		&user.IP)
+	if err != nil {
+		return fmt.Errorf("db: insert into users: %w", err)
+	}
+	_, err = d.MySql.Exec(
+		"DELETE FROM registration_queue WHERE ID = $1",
+		&user.ID)
+	if err != nil {
+		return fmt.Errorf("db: delete from registration_queue: %w", err)
+	}
+	return nil
+}
+
+func (d MySql) UnregisterUser(user *concierge.User) error {
+	_, err := d.MySql.Exec("DELETE FROM users WHERE id = $1",
+		user.ID)
+	if err != nil {
+		return fmt.Errorf("db: delete from registration_queue: %w", err)
+	}
+	return nil
+}
+
+func (d MySql) EnableUser(id *int64) error {
+	_, err := d.MySql.Exec(
+		"UPDATE users SET Enabled = $1 WHERE ID = $2",
+		1,
+		&id)
+	if err != nil {
+		return fmt.Errorf("db: failed to enable user: %w", err)
+	}
+	return nil
+}
+
+func (d MySql) DisableUser(id *int64) error {
+	_, err := d.MySql.Exec(
+		"UPDATE users SET Enabled = $1 WHERE ID = $2",
+		0,
+		&id)
+	if err != nil {
+		return fmt.Errorf("db: failed to disable user: %w", err)
+	}
+	return nil
+}
+
+func (d MySql) Edit(user *concierge.User, param string, val string) error {
+	switch param {
+	case "allowedips":
+		_, err := d.MySql.Exec("UPDATE users SET AllowedIPs = $1 WHERE ID = $2", val, user.ID)
+		if err != nil {
+			return fmt.Errorf("db: failed to edit row: %w", err)
+		}
+	case "ip":
+		_, err := d.MySql.Exec("UPDATE users SET IP = $1 WHERE ID = $2", val, user.ID)
+		if err != nil {
+			return fmt.Errorf("db: failed to edit row: %w", err)
+		}
+	default:
+		return fmt.Errorf("unknown param: %s", param)
+
+	}
+	return nil
+}
+
+func (d MySql) SessionStarted(id int64, time time.Time) error {
+	_, err := d.MySql.Exec("UPDATE users SET Session = $1,SessionTimeStamp = $2 WHERE id = $3", 1, time.String(), id)
+	if err != nil {
+		return fmt.Errorf("db: failed to set start session: %w", err)
+	}
+	return nil
+}
+
+func (d MySql) SessionEnded(id int64) error {
+	_, err := d.MySql.Exec("UPDATE users SET Session = $1 WHERE id = $3", 0, id)
+	if err != nil {
+		return fmt.Errorf("db: failed to set start session: %w", err)
 	}
 	return nil
 }

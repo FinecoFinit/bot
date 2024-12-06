@@ -1,22 +1,23 @@
 package tg
 
 import (
-	"bot/pkg/db"
+	"bot/concierge"
 	"fmt"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pquerna/otp/totp"
 	"github.com/thoas/go-funk"
 	tele "gopkg.in/telebot.v4"
 )
 
-func (h HighWay) Start(c tele.Context) error {
+func (t Telegram) Start(c tele.Context) error {
 	return c.Send("Hello")
 }
 
-func (h HighWay) Register(c tele.Context) error {
+func (t Telegram) Register(c tele.Context) error {
 
 	if c.Args() == nil {
 		return c.Send("```\n/register email```", &tele.SendOptions{ParseMode: "MarkdownV2"})
@@ -26,24 +27,25 @@ func (h HighWay) Register(c tele.Context) error {
 		return c.Send("Ошибка введенных параметров")
 	}
 
-	if slices.Contains(*h.Resources.UserDBIDs, c.Sender().ID) {
+	if slices.Contains(*t.Managers.UserDBIDs, c.Sender().ID) {
 		return c.Send("Пользователь существует")
 	}
-	if slices.Contains(*h.Resources.QUserDBIDs, c.Sender().ID) {
+	if slices.Contains(*t.Managers.QUserDBIDs, c.Sender().ID) {
 		return c.Send("Регистрация в процессе")
 	}
-	err := h.DataBase.RegisterQueue(c.Sender().ID, c.Args()[0])
+
+	err := t.Storage.RegisterQueue(c.Sender().ID, c.Args()[0])
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("registration: failed to register user")
+		t.Logger.Error().Err(err).Msg("registration: failed to register user")
 		return c.Send("Ошибка, сообщите администратору")
 	}
 
-	_, err = h.Tg.Send(
-		tele.ChatID(h.DataVars.AdminLogChat),
+	_, err = t.Tg.Send(
+		tele.ChatID(t.Config.AdminWgChatID),
 		"В очередь добавлен новый пользователь:\n🆔: ``"+strconv.FormatInt(c.Sender().ID, 10)+
 			"``\n👔: @"+c.Sender().Username+
 			"\n✉️: "+strings.Replace(c.Args()[0], ".", "\\.", 1), &tele.SendOptions{
-			ThreadID:  h.DataVars.AdminLogChatThread,
+			ThreadID:  t.Config.AdminWgChatThread,
 			ParseMode: "MarkdownV2",
 			ReplyMarkup: &tele.ReplyMarkup{
 				OneTimeKeyboard: true,
@@ -57,19 +59,19 @@ func (h HighWay) Register(c tele.Context) error {
 						Text:   "Deny",
 						Data:   strconv.FormatInt(c.Sender().ID, 10)}}}}})
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("registration")
+		t.Logger.Error().Err(err).Msg("registration")
 	}
-	err = h.DataBase.GetQueueUsersIDs(h.Resources.QUserDBIDs)
+	err = t.Storage.GetQueueUsersIDs(t.Managers.QUserDBIDs)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("registration: failed to update queue ids")
+		t.Logger.Error().Err(err).Msg("registration: failed to update queue ids")
 	}
-	h.Resources.Logger.Info().Msg("new user registered in queue: " + strconv.FormatInt(c.Sender().ID, 10))
+	t.Logger.Info().Msg("new user registered in queue: " + strconv.FormatInt(c.Sender().ID, 10))
 	return c.Send("Заявка на регистрацию принята")
 }
 
-func (h HighWay) Accept(c tele.Context) error {
-	if !slices.Contains(*h.Resources.AdminDBIDs, c.Sender().ID) {
-		h.Resources.Logger.Warn().Msg("accept: non admin user tried to use /accept")
+func (t Telegram) Accept(c tele.Context) error {
+	if !slices.Contains(*t.Managers.AdminDBIDs, c.Sender().ID) {
+		t.Logger.Warn().Msg("accept: non admin user tried to use /accept")
 		return c.Send("Unknown", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
@@ -86,13 +88,13 @@ func (h HighWay) Accept(c tele.Context) error {
 		return c.Send("Неудалось обработать ID пользователя", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
-	qUser, err := h.DataBase.GetQueueUser(&id)
+	qUser, err := t.Storage.GetQueueUser(&id)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("accept")
+		t.Logger.Error().Err(err).Msg("accept")
 		return c.Send(fmt.Errorf("accept: %w \n", err).Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
-	user := db.User{
+	user := concierge.User{
 		ID:               qUser.ID,
 		UserName:         qUser.UserName,
 		Enabled:          0,
@@ -106,29 +108,29 @@ func (h HighWay) Accept(c tele.Context) error {
 		IP:               qUser.IP,
 	}
 
-	err = h.DataBase.RegisterUser(&user)
+	err = t.Storage.RegisterUser(&user)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("accept")
+		t.Logger.Error().Err(err).Msg("accept")
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
-	err = h.DataBase.GetUsersIDs(h.Resources.UserDBIDs)
+	err = t.Storage.GetUsersIDs(t.Managers.UserDBIDs)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("accept")
+		t.Logger.Error().Err(err).Msg("accept")
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
-	err = h.DataBase.GetQueueUsersIDs(h.Resources.QUserDBIDs)
+	err = t.Storage.GetQueueUsersIDs(t.Managers.QUserDBIDs)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("accept")
+		t.Logger.Error().Err(err).Msg("accept")
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
 	return c.Send("Пользователь успешно добавлен", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 }
 
-func (h HighWay) AddUser(c tele.Context) error {
-	if !slices.Contains(*h.Resources.AdminDBIDs, c.Sender().ID) {
-		h.Resources.Logger.Warn().Msg("adduser: non admin user tried to use /adduser" + strconv.FormatInt(c.Sender().ID, 10))
+func (t Telegram) AddUser(c tele.Context) error {
+	if !slices.Contains(*t.Managers.AdminDBIDs, c.Sender().ID) {
+		t.Logger.Warn().Msg("adduser: non admin user tried to use /adduser" + strconv.FormatInt(c.Sender().ID, 10))
 		return c.Send("Unknown", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
@@ -153,7 +155,7 @@ func (h HighWay) AddUser(c tele.Context) error {
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
-	user := db.User{
+	user := concierge.User{
 		ID:               id,
 		UserName:         c.Args()[1],
 		Enabled:          enabled,
@@ -167,23 +169,23 @@ func (h HighWay) AddUser(c tele.Context) error {
 		IP:               ip,
 	}
 
-	err = h.DataBase.RegisterUser(&user)
+	err = t.Storage.RegisterUser(&user)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("adduser")
+		t.Logger.Error().Err(err).Msg("adduser")
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
-	err = h.DataBase.GetUsersIDs(h.Resources.UserDBIDs)
+	err = t.Storage.GetUsersIDs(t.Managers.UserDBIDs)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("adduser")
+		t.Logger.Error().Err(err).Msg("adduser")
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
 	return c.Send("Пользователь добавлен", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 }
 
-func (h HighWay) DelUser(c tele.Context) error {
-	if !slices.Contains(*h.Resources.AdminDBIDs, c.Sender().ID) {
-		h.Resources.Logger.Warn().Msg("adduser: non admin user tried to use /adduser" + strconv.FormatInt(c.Sender().ID, 10))
+func (t Telegram) DelUser(c tele.Context) error {
+	if !slices.Contains(*t.Managers.AdminDBIDs, c.Sender().ID) {
+		t.Logger.Warn().Msg("adduser: non admin user tried to use /adduser" + strconv.FormatInt(c.Sender().ID, 10))
 		return c.Send("Unknown", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
@@ -200,30 +202,30 @@ func (h HighWay) DelUser(c tele.Context) error {
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
-	user, err := h.DataBase.GetUser(&id)
+	user, err := t.Storage.GetUser(&id)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("failed to get user")
+		t.Logger.Error().Err(err).Msg("failed to get user")
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
-	err = h.DataBase.UnregisterUser(&user)
+	err = t.Storage.UnregisterUser(&user)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("failed to unregister user")
+		t.Logger.Error().Err(err).Msg("failed to unregister user")
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
-	err = h.DataBase.GetUsersIDs(h.Resources.UserDBIDs)
+	err = t.Storage.GetUsersIDs(t.Managers.UserDBIDs)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("accept")
+		t.Logger.Error().Err(err).Msg("accept")
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
 	return c.Send("Пользователь: "+user.UserName+" удален", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 }
 
-func (h HighWay) SendCreds(c tele.Context) error {
-	if !slices.Contains(*h.Resources.AdminDBIDs, c.Sender().ID) {
-		h.Resources.Logger.Warn().Msg("sendcreds: non admin user tried to use /sendcreds" + strconv.FormatInt(c.Sender().ID, 10))
+func (t Telegram) SendCreds(c tele.Context) error {
+	if !slices.Contains(*t.Managers.AdminDBIDs, c.Sender().ID) {
+		t.Logger.Warn().Msg("sendcreds: non admin user tried to use /sendcreds" + strconv.FormatInt(c.Sender().ID, 10))
 		return c.Send("Unknown", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
@@ -240,19 +242,19 @@ func (h HighWay) SendCreds(c tele.Context) error {
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
-	user, err := h.DataBase.GetUser(&id)
+	user, err := t.Storage.GetUser(&id)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("sendcreds")
+		t.Logger.Error().Err(err).Msg("sendcreds")
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
-	err = h.EmailManager.SendEmail(&user)
+	err = t.Email.SendEmail(&user)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("sendcreds")
+		t.Logger.Error().Err(err).Msg("sendcreds")
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
-	_, err = h.Tg.Send(tele.ChatID(user.ID), "Регистрация завершена, на почту отправлен QR-код двухфакторной аутентификации и конфигурационный файл, далее требуется только ввод двухфакторного кода")
+	_, err = t.Tg.Send(tele.ChatID(user.ID), "Регистрация завершена, на почту отправлен QR-код двухфакторной аутентификации и конфигурационный файл, далее требуется только ввод двухфакторного кода")
 	if err != nil {
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
@@ -260,9 +262,9 @@ func (h HighWay) SendCreds(c tele.Context) error {
 	return c.Send("Креды отправлены", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 }
 
-func (h HighWay) Enable(c tele.Context) error {
-	if !slices.Contains(*h.Resources.AdminDBIDs, c.Sender().ID) {
-		h.Resources.Logger.Warn().Msg("enable: non admin user tried to use /enable " + strconv.FormatInt(c.Sender().ID, 10))
+func (t Telegram) Enable(c tele.Context) error {
+	if !slices.Contains(*t.Managers.AdminDBIDs, c.Sender().ID) {
+		t.Logger.Warn().Msg("enable: non admin user tried to use /enable " + strconv.FormatInt(c.Sender().ID, 10))
 		return c.Send("Unknown", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
@@ -275,24 +277,24 @@ func (h HighWay) Enable(c tele.Context) error {
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
-	user, err := h.DataBase.GetUser(&id)
+	user, err := t.Storage.GetUser(&id)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("enable")
+		t.Logger.Error().Err(err).Msg("enable")
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
-	err = h.DataBase.EnableUser(&user.ID)
+	err = t.Storage.EnableUser(&user.ID)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("enable")
+		t.Logger.Error().Err(err).Msg("enable")
 		return c.Send("Не удалось активировать пользователя", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
 	return c.Send("Пользователь "+c.Args()[0]+" активирован", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 }
 
-func (h HighWay) Disable(c tele.Context) error {
-	if !slices.Contains(*h.Resources.AdminDBIDs, c.Sender().ID) {
-		h.Resources.Logger.Warn().Msg("enable: non admin user tried to use /disable " + strconv.FormatInt(c.Sender().ID, 10))
+func (t Telegram) Disable(c tele.Context) error {
+	if !slices.Contains(*t.Managers.AdminDBIDs, c.Sender().ID) {
+		t.Logger.Warn().Msg("enable: non admin user tried to use /disable " + strconv.FormatInt(c.Sender().ID, 10))
 		return c.Send("Unknown", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
@@ -305,34 +307,39 @@ func (h HighWay) Disable(c tele.Context) error {
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
-	user, err := h.DataBase.GetUser(&id)
+	user, err := t.Storage.GetUser(&id)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("enable")
+		t.Logger.Error().Err(err).Msg("enable")
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
-	if h.Resources.SessionManager[user.ID] {
-		err = h.WGManager.WgStopSession(&user, h.Resources.MessageManager[user.ID])
+	if t.Managers.SessionManager[user.ID] {
+		err = t.Wireguard.WgStopSession(&user)
 		if err != nil {
-			h.Resources.Logger.Error().Err(err).Msg("disable")
+			t.Logger.Error().Err(err).Msg("disable")
 			return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 		}
-		h.Resources.Logger.Info().Msg("disable: forcefully stopped session of: " + user.UserName)
-		h.Resources.SessionManager[user.ID] = false
+		err = t.SessionEnded(user)
+		if err != nil {
+			t.Logger.Error().Err(err).Msg("disable")
+			return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+		}
+		t.Logger.Info().Msg("disable: forcefully stopped session of: " + user.UserName)
+		t.Managers.SessionManager[user.ID] = false
 	}
 
-	err = h.DataBase.DisableUser(&user.ID)
+	err = t.Storage.DisableUser(&user.ID)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("disable")
+		t.Logger.Error().Err(err).Msg("disable")
 		return c.Send("Не удалось деактивировать пользователя", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
 	return c.Send("Пользователь "+c.Args()[0]+" деактивирован", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 }
 
-func (h HighWay) Get(c tele.Context) error {
-	if !slices.Contains(*h.Resources.AdminDBIDs, c.Sender().ID) {
-		h.Resources.Logger.Warn().Msg("enable: non admin user tried to use /get " + strconv.FormatInt(c.Sender().ID, 10))
+func (t Telegram) Get(c tele.Context) error {
+	if !slices.Contains(*t.Managers.AdminDBIDs, c.Sender().ID) {
+		t.Logger.Warn().Msg("enable: non admin user tried to use /get " + strconv.FormatInt(c.Sender().ID, 10))
 		return c.Send("Unknown", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
@@ -340,26 +347,26 @@ func (h HighWay) Get(c tele.Context) error {
 		return c.Send("```\n/get email```", &tele.SendOptions{ParseMode: "MarkdownV2"})
 	}
 
-	user, err := h.DataBase.GetUserName(&c.Args()[0])
+	user, err := t.Storage.GetUserName(&c.Args()[0])
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("get")
+		t.Logger.Error().Err(err).Msg("get")
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
-	return c.Send(strconv.FormatInt(user.ID, 10)+" | "+user.UserName+" | "+user.AllowedIPs+" | "+h.DataVars.WgSubNet+strconv.Itoa(user.IP), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+	return c.Send(strconv.FormatInt(user.ID, 10)+" | "+user.UserName+" | "+user.AllowedIPs+" | "+t.Config.WgSubNet+strconv.Itoa(user.IP), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 }
 
-func (h HighWay) Verification(c tele.Context) error {
-	if !funk.ContainsInt64(*h.Resources.UserDBIDs, c.Sender().ID) {
-		h.Resources.Logger.Warn().Msg("unregistered user sent message:" + strconv.FormatInt(c.Sender().ID, 10) + " " + c.Sender().Username)
+func (t Telegram) Verification(c tele.Context) error {
+	if !funk.ContainsInt64(*t.Managers.UserDBIDs, c.Sender().ID) {
+		t.Logger.Warn().Msg("unregistered user sent message:" + strconv.FormatInt(c.Sender().ID, 10) + " " + c.Sender().Username)
 		return c.Send("Error")
 	}
 
-	user, err := h.DataBase.GetUser(&c.Sender().ID)
+	user, err := t.Storage.GetUser(&c.Sender().ID)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("validation")
-		_, err = h.Tg.Send(tele.ChatID(h.DataVars.AdminLogChat), err.Error(), &tele.SendOptions{ThreadID: h.DataVars.AdminLogChatThread})
+		t.Logger.Error().Err(err).Msg("validation")
+		_, err = t.Tg.Send(tele.ChatID(t.Config.AdminWgChatID), err.Error(), &tele.SendOptions{ThreadID: t.Config.AdminWgChatThread})
 		if err != nil {
-			h.Resources.Logger.Error().Err(err).Msg("failed to send message")
+			t.Logger.Error().Err(err).Msg("failed to send message")
 		}
 		return c.Send("Произошла ошибка, обратитесь к администратору")
 	}
@@ -369,41 +376,42 @@ func (h HighWay) Verification(c tele.Context) error {
 	}
 
 	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      h.DataVars.TotpVendor,
+		Issuer:      t.Config.TotpVendor,
 		AccountName: user.UserName,
 		Secret:      []byte(user.TOTPSecret)})
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("validation")
-		_, err = h.Tg.Send(tele.ChatID(h.DataVars.AdminLogChat), err.Error(), &tele.SendOptions{ThreadID: h.DataVars.AdminLogChatThread})
+		t.Logger.Error().Err(err).Msg("validation")
+		_, err = t.Tg.Send(tele.ChatID(t.Config.AdminWgChatID), err.Error(), &tele.SendOptions{ThreadID: t.Config.AdminWgChatThread})
 		if err != nil {
-			h.Resources.Logger.Error().Err(err).Msg("failed to send message")
+			t.Logger.Error().Err(err).Msg("failed to send message")
 		}
 		return c.Send("Произошла ошибка, обратитесь к администратору")
 	}
 
 	if !totp.Validate(c.Text(), key.Secret()) {
-		h.Resources.Logger.Info().Msg(user.UserName + " failed validation")
+		t.Logger.Info().Msg(user.UserName + " failed validation")
 		return c.Send("Неверный код")
 	}
 
-	if h.Resources.SessionManager[c.Sender().ID] {
+	if t.Managers.SessionManager[c.Sender().ID] {
 		return c.Send("Сессия уже запущена")
 	}
 
-	err = h.WGManager.WgStartSession(&user)
+	err = t.Wireguard.WgStartSession(&user)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("validation")
+		t.Logger.Error().Err(err).Msg("validation")
 		return c.Send("Ошибка создания сессии, обратитесь к администратору")
 	}
+	go t.Session(&user, time.Now(), t.Managers.MessageManager[user.ID])
 
-	h.Resources.Logger.Info().Msg("session started for: " + user.UserName)
+	t.Logger.Info().Msg("session started for: " + user.UserName)
 
 	return c.Send("Сессия создана")
 }
 
-func (h HighWay) Edit(c tele.Context) error {
-	if !funk.ContainsInt64(*h.Resources.UserDBIDs, c.Sender().ID) {
-		h.Resources.Logger.Warn().Msg("unregistered user sent message:" + strconv.FormatInt(c.Sender().ID, 10) + " " + c.Sender().Username)
+func (t Telegram) Edit(c tele.Context) error {
+	if !funk.ContainsInt64(*t.Managers.UserDBIDs, c.Sender().ID) {
+		t.Logger.Warn().Msg("unregistered user sent message:" + strconv.FormatInt(c.Sender().ID, 10) + " " + c.Sender().Username)
 		return c.Send("Error")
 	}
 
@@ -416,15 +424,15 @@ func (h HighWay) Edit(c tele.Context) error {
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
-	user, err := h.DataBase.GetUser(&id)
+	user, err := t.Storage.GetUser(&id)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("edit")
+		t.Logger.Error().Err(err).Msg("edit")
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 
-	err = h.DataBase.Edit(&user, c.Args()[1], c.Args()[2])
+	err = t.Storage.Edit(&user, c.Args()[1], c.Args()[2])
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("edit")
+		t.Logger.Error().Err(err).Msg("edit")
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 

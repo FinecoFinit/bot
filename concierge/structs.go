@@ -1,25 +1,15 @@
 package concierge
 
 import (
-	"github.com/rs/zerolog"
 	tele "gopkg.in/telebot.v4"
 )
 
-type DataVars struct {
-	AdminLogChat       int64
-	AdminLogChatThread int
-	WgDNS              string
-	WgSubNet           string
-	TotpVendor         string
-}
-
-type Resources struct {
+type Managers struct {
 	AdminDBIDs     *[]int64
 	UserDBIDs      *[]int64
 	QUserDBIDs     *[]int64
 	SessionManager map[int64]bool
 	MessageManager map[int64]*tele.Message
-	Logger         zerolog.Logger
 }
 
 type Config struct {
@@ -39,4 +29,33 @@ type Config struct {
 	LogFilePath       string `yaml:"log_file_path"`
 	ConfPrefix        string `yaml:"conf_prefix"`
 	TotpVendor        string `yaml:"totp_vendor"`
+}
+
+type User struct {
+	ID               int64
+	UserName         string
+	Enabled          int
+	TOTPSecret       string
+	Session          int
+	SessionTimeStamp string
+	Peer             string
+	PeerPre          string
+	PeerPub          string
+	AllowedIPs       string
+	IP               int
+}
+
+type Admin struct {
+	ID       int64
+	UserName string
+}
+
+type QueueUser struct {
+	ID         int64
+	UserName   string
+	TOTPSecret string
+	Peer       string
+	PeerPub    string
+	PeerPre    string
+	IP         int
 }

@@ -1,7 +1,7 @@
 package tg
 
 import (
-	"bot/pkg/db"
+	"bot/concierge"
 	"fmt"
 	"slices"
 	"strconv"
@@ -11,9 +11,9 @@ import (
 	tele "gopkg.in/telebot.v4"
 )
 
-func (h HighWay) RegisterAccept(c tele.Context) error {
-	if !slices.Contains(*h.Resources.AdminDBIDs, c.Sender().ID) {
-		h.Resources.Logger.Error().Msg("accept: non admin user tried to use accept user")
+func (t Telegram) RegisterAccept(c tele.Context) error {
+	if !slices.Contains(*t.Managers.AdminDBIDs, c.Sender().ID) {
+		t.Logger.Error().Msg("accept: non admin user tried to use accept user")
 		return c.Respond(&tele.CallbackResponse{Text: "Not admin"})
 	}
 
@@ -22,17 +22,17 @@ func (h HighWay) RegisterAccept(c tele.Context) error {
 		return c.Respond(&tele.CallbackResponse{Text: "Неудалось обработать ID пользователя"})
 	}
 
-	if funk.ContainsInt64(*h.Resources.UserDBIDs, id) {
+	if funk.ContainsInt64(*t.Managers.UserDBIDs, id) {
 		return c.Respond(&tele.CallbackResponse{Text: "Пользователь уже зарегистрирован"})
 	}
 
-	qUser, err := h.DataBase.GetQueueUser(&id)
+	qUser, err := t.Storage.GetQueueUser(&id)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("accept")
+		t.Logger.Error().Err(err).Msg("accept")
 		return c.Respond(&tele.CallbackResponse{Text: fmt.Errorf("accept: %w \n", err).Error()})
 	}
 
-	user := db.User{
+	user := concierge.User{
 		ID:               qUser.ID,
 		UserName:         qUser.UserName,
 		Enabled:          1,
@@ -42,18 +42,18 @@ func (h HighWay) RegisterAccept(c tele.Context) error {
 		Peer:             qUser.Peer,
 		PeerPre:          qUser.PeerPre,
 		PeerPub:          qUser.PeerPub,
-		AllowedIPs:       h.AllowedIPs,
+		AllowedIPs:       t.Config.WgAllowedIps,
 		IP:               qUser.IP,
 	}
 
-	err = h.DataBase.RegisterUser(&user)
+	err = t.Storage.RegisterUser(&user)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("accept")
+		t.Logger.Error().Err(err).Msg("accept")
 		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
 	}
-	h.Resources.Logger.Info().Msg("user: " + user.UserName + " with id: " + strconv.FormatInt(user.ID, 10) + " registered")
+	t.Logger.Info().Msg("user: " + user.UserName + " with id: " + strconv.FormatInt(user.ID, 10) + " registered")
 
-	_, err = h.Tg.Edit(c.Message(), c.Message().Text+"\nПользователь добавлен", &tele.SendOptions{
+	_, err = t.Tg.Edit(c.Message(), c.Message().Text+"\nПользователь добавлен", &tele.SendOptions{
 		ReplyMarkup: &tele.ReplyMarkup{
 			OneTimeKeyboard: true,
 			InlineKeyboard: [][]tele.InlineButton{{
@@ -66,22 +66,22 @@ func (h HighWay) RegisterAccept(c tele.Context) error {
 		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
 	}
 
-	err = h.DataBase.GetUsersIDs(h.Resources.UserDBIDs)
+	err = t.Storage.GetUsersIDs(t.Managers.UserDBIDs)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("accept")
+		t.Logger.Error().Err(err).Msg("accept")
 		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
 	}
-	err = h.DataBase.GetQueueUsersIDs(h.Resources.QUserDBIDs)
+	err = t.Storage.GetQueueUsersIDs(t.Managers.QUserDBIDs)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("accept")
+		t.Logger.Error().Err(err).Msg("accept")
 		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
 	}
 	return c.Respond(&tele.CallbackResponse{Text: "Пользователь: " + user.UserName + " добавлен", ShowAlert: false})
 }
 
-func (h HighWay) RegisterDeny(c tele.Context) error {
-	if !slices.Contains(*h.Resources.AdminDBIDs, c.Sender().ID) {
-		h.Resources.Logger.Error().Msg("deny: non admin user tried to use accept user")
+func (t Telegram) RegisterDeny(c tele.Context) error {
+	if !slices.Contains(*t.Managers.AdminDBIDs, c.Sender().ID) {
+		t.Logger.Error().Msg("deny: non admin user tried to use accept user")
 		return c.Respond(&tele.CallbackResponse{Text: "Not admin"})
 	}
 
@@ -90,39 +90,39 @@ func (h HighWay) RegisterDeny(c tele.Context) error {
 		return c.Respond(&tele.CallbackResponse{Text: "Неудалось обработать ID пользователя"})
 	}
 
-	if !funk.ContainsInt64(*h.Resources.QUserDBIDs, id) {
+	if !funk.ContainsInt64(*t.Managers.QUserDBIDs, id) {
 		return c.Respond(&tele.CallbackResponse{Text: "Пользователь не существует в списке на регистрацию"})
 	}
 
-	qUser, err := h.DataBase.GetQueueUser(&id)
+	qUser, err := t.Storage.GetQueueUser(&id)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("deny")
+		t.Logger.Error().Err(err).Msg("deny")
 		return c.Respond(&tele.CallbackResponse{Text: fmt.Errorf("accept: %w \n", err).Error()})
 	}
 
-	err = h.DataBase.UnRegisterQUser(&qUser)
+	err = t.Storage.UnRegisterQUser(&qUser)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("deny")
+		t.Logger.Error().Err(err).Msg("deny")
 		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
 	}
-	h.Resources.Logger.Info().Msg("queue user: " + qUser.UserName + " with id: " + strconv.FormatInt(qUser.ID, 10) + " unregistered")
+	t.Logger.Info().Msg("queue user: " + qUser.UserName + " with id: " + strconv.FormatInt(qUser.ID, 10) + " unregistered")
 
-	_, err = h.Tg.Edit(c.Message(), c.Message().Text+"\nПользователь отклонен")
+	_, err = t.Tg.Edit(c.Message(), c.Message().Text+"\nПользователь отклонен")
 	if err != nil {
 		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
 	}
 
-	err = h.DataBase.GetQueueUsersIDs(h.Resources.QUserDBIDs)
+	err = t.Storage.GetQueueUsersIDs(t.Managers.QUserDBIDs)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("deny")
+		t.Logger.Error().Err(err).Msg("deny")
 		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
 	}
 	return c.Respond(&tele.CallbackResponse{Text: "Пользователь: " + qUser.UserName + " отклонен", ShowAlert: false})
 }
 
-func (h HighWay) StopSession(c tele.Context) error {
-	if !slices.Contains(*h.Resources.AdminDBIDs, c.Sender().ID) {
-		h.Resources.Logger.Error().Msg("stop_session: non admin user tried to use accept user")
+func (t Telegram) StopSession(c tele.Context) error {
+	if !slices.Contains(*t.Managers.AdminDBIDs, c.Sender().ID) {
+		t.Logger.Error().Msg("stop_session: non admin user tried to use accept user")
 		return c.Respond(&tele.CallbackResponse{Text: "Not admin"})
 	}
 
@@ -131,39 +131,39 @@ func (h HighWay) StopSession(c tele.Context) error {
 		return c.Respond(&tele.CallbackResponse{Text: "Неудалось обработать ID пользователя"})
 	}
 
-	if !h.Resources.SessionManager[id] {
-		_, err := h.Tg.Edit(c.Message(), strings.ReplaceAll(c.Message().Text, ".", "\\.")+"\nСессия завершена", &tele.SendOptions{ParseMode: "MarkdownV2"})
+	if !t.Managers.SessionManager[id] {
+		_, err := t.Tg.Edit(c.Message(), strings.ReplaceAll(c.Message().Text, ".", "\\.")+"\nСессия завершена", &tele.SendOptions{ParseMode: "MarkdownV2"})
 		if err != nil {
-			h.Resources.Logger.Error().Err(err).Msg("stop_session: failed to edit session message")
+			t.Logger.Error().Err(err).Msg("stop_session: failed to edit session message")
 		}
 		return c.Respond(&tele.CallbackResponse{Text: "Сессия не существует"})
 	}
 
-	user, err := h.DataBase.GetUser(&id)
+	user, err := t.Storage.GetUser(&id)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("stop_session: failed to get user")
+		t.Logger.Error().Err(err).Msg("stop_session: failed to get user")
 		return c.Respond(&tele.CallbackResponse{Text: "db: Не удалось получить профиль пользователя"})
 	}
 
-	err = h.WGManager.WgStopSession(&user, h.Resources.MessageManager[id])
+	err = t.Wireguard.WgStopSession(&user)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("stop_session: failed to stop session from button")
+		t.Logger.Error().Err(err).Msg("stop_session: failed to stop session from button")
 		return c.Respond(&tele.CallbackResponse{Text: "wg: Не удалось остановить сессию"})
 	}
 
 	return c.Respond(&tele.CallbackResponse{Text: "Сессия пользователя " + user.UserName + " остановлена", ShowAlert: false})
 }
 
-func (h HighWay) SendCredsBtn(c tele.Context) error {
+func (t Telegram) SendCredsBtn(c tele.Context) error {
 	id, err := strconv.ParseInt(c.Data(), 10, 64)
-	user, err := h.DataBase.GetUser(&id)
+	user, err := t.Storage.GetUser(&id)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("send_creds_btn")
+		t.Logger.Error().Err(err).Msg("send_creds_btn")
 		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
 	}
-	err = h.EmailManager.SendEmail(&user)
+	err = t.Email.SendEmail(&user)
 	if err != nil {
-		h.Resources.Logger.Error().Err(err).Msg("send_creds_btn")
+		t.Logger.Error().Err(err).Msg("send_creds_btn")
 		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
 	}
 	return c.Respond(&tele.CallbackResponse{Text: "Креды отправлены", ShowAlert: false})
