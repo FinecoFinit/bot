@@ -4,6 +4,8 @@ import (
 	"bot/concierge"
 	"bytes"
 	"fmt"
+	"github.com/boombuler/barcode"
+	"github.com/boombuler/barcode/qr"
 	"github.com/pquerna/otp/totp"
 	"image/png"
 	"io"
@@ -29,7 +31,15 @@ func (e Email) SendEmail(user *concierge.User) error {
 	}
 	message.Subject("Wireguard config")
 	message.SetBodyString(mail.TypeTextPlain, "Wireguard config file for "+user.UserName)
-	err := message.AttachReader("wireguard_"+strings.Trim(user.UserName, "@wooppay.com")+"_"+e.Config.ConfPrefix+".conf", io.Reader(e.GenConf(user)))
+	err := message.AttachReader("wireguard_"+strings.Split(user.UserName, "@")[0]+"_"+e.Config.ConfPrefix+".conf", io.Reader(e.GenConf(user)))
+	if err != nil {
+		return err
+	}
+	confImg, err := e.GenConfImg(e.GenConf(user))
+	if err != nil {
+		return err
+	}
+	err = message.AttachReader("wireguard_"+strings.Split(user.UserName, "@")[0]+"_"+e.Config.ConfPrefix+".png", confImg)
 	if err != nil {
 		return err
 	}
@@ -61,6 +71,20 @@ func (e Email) GenConf(user *concierge.User) *bytes.Buffer {
 			"Endpoint = " + e.Config.WgPublicIP + "\r\n" +
 			"PersistentKeepalive = 15")
 	return buf
+}
+
+func (e Email) GenConfImg(buf *bytes.Buffer) (*bytes.Buffer, error) {
+	qrCode, err := qr.Encode(buf.String(), qr.M, qr.Auto)
+	if err != nil {
+		return nil, err
+	}
+	qrCode, _ = barcode.Scale(qrCode, 256, 256)
+	imgBuf := new(bytes.Buffer)
+	err = png.Encode(imgBuf, qrCode)
+	if err != nil {
+		return nil, err
+	}
+	return imgBuf, nil
 }
 
 func (e Email) GenKeyImage(user *concierge.User) (*bytes.Buffer, error) {
