@@ -14,7 +14,7 @@ import (
 )
 
 func (t Telegram) Start(c tele.Context) error {
-	return c.Send("Hello")
+	return c.Send("Для дальнейшего инструктажа обратитесь к документации в базе знаний")
 }
 
 func (t Telegram) Register(c tele.Context) error {
