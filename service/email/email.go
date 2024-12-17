@@ -60,15 +60,15 @@ func (e Email) SendEmail(user *concierge.User) error {
 
 func (e Email) GenConf(user *concierge.User) *bytes.Buffer {
 	buf := bytes.NewBufferString(
-		"[Interface]\r\n" +
-			"Address = " + e.Config.WgSubNet + strconv.Itoa(user.IP) + "/32\r\n" +
-			"PrivateKey = " + user.Peer + "\r\n" +
-			"DNS = " + e.Config.WgDNS + "\r\n" +
-			"\r\n" +
-			"[Peer]\r\nPublicKey = " + e.Config.WgPublicKey + "\r\n" +
-			"PresharedKey = " + user.PeerPre + "\r\n" +
-			"AllowedIPs = " + user.AllowedIPs + "\r\n" +
-			"Endpoint = " + e.Config.WgPublicIP + "\r\n" +
+		"[Interface]\n" +
+			"Address = " + e.Config.WgSubNet + strconv.Itoa(user.IP) + "/32\n" +
+			"PrivateKey = " + user.Peer + "\n" +
+			"DNS = " + e.Config.WgDNS + "\n" +
+			"\n" +
+			"[Peer]\nPublicKey = " + e.Config.WgPublicKey + "\n" +
+			"PresharedKey = " + user.PeerPre + "\n" +
+			"AllowedIPs = " + user.AllowedIPs + "\n" +
+			"Endpoint = " + e.Config.WgPublicIP + "\n" +
 			"PersistentKeepalive = 15")
 	return buf
 }

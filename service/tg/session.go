@@ -19,7 +19,7 @@ func (t Telegram) Session(user *concierge.User, ti time.Time, statusMsg *tele.Me
 			t.Logger.Err(err).Msg("wg: failed to run command for session")
 		}
 
-		if slices.IndexFunc(strings.Split(string(out), "\r\n"), func(c string) bool { return strings.Contains(c, user.PeerPub) }) == -1 {
+		if slices.IndexFunc(strings.Split(string(out), "\n"), func(c string) bool { return strings.Contains(c, user.PeerPub) }) == -1 {
 			err := t.SessionEnded(*user)
 			if err != nil {
 				t.Logger.Err(err).Msg("wg: failed to find wg peer")
@@ -28,7 +28,7 @@ func (t Telegram) Session(user *concierge.User, ti time.Time, statusMsg *tele.Me
 			return
 		}
 
-		outStr := strings.Fields(strings.Split(string(out), "\r\n")[slices.IndexFunc(strings.Split(string(out), "\r\n"), func(c string) bool { return strings.Contains(c, user.PeerPub) })])
+		outStr := strings.Fields(strings.Split(string(out), "\n")[slices.IndexFunc(strings.Split(string(out), "\n"), func(c string) bool { return strings.Contains(c, user.PeerPub) })])
 		statusMsgText := "Создана сессия: \n" + " 👔: " + strings.ReplaceAll(user.UserName, ".", "\\.") + "\n" + " 🌍: ``" + strings.ReplaceAll(outStr[3], ".", "\\.") + "``\n" + " ⏬: " + outStr[5] + "\n" + " ⏫: " + outStr[6] + "\n"
 
 		if statusMsg.Text != statusMsgText {
