@@ -2,7 +2,7 @@ package tg
 
 import (
 	"bot/concierge"
-	tele "gopkg.in/telebot.v4"
+	tele "gopkg.in/telebot.v3"
 	"os/exec"
 	"slices"
 	"strconv"

@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/thoas/go-funk"
-	tele "gopkg.in/telebot.v4"
+	tele "gopkg.in/telebot.v3"
 )
 
 func (t Telegram) RegisterAccept(c tele.Context) error {

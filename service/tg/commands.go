@@ -10,7 +10,7 @@ import (
 
 	"github.com/pquerna/otp/totp"
 	"github.com/thoas/go-funk"
-	tele "gopkg.in/telebot.v4"
+	tele "gopkg.in/telebot.v3"
 )
 
 func (t Telegram) Start(c tele.Context) error {

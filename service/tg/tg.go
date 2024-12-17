@@ -6,7 +6,7 @@ import (
 	"bot/service/wg"
 	"bot/storage"
 	"github.com/rs/zerolog"
-	tele "gopkg.in/telebot.v4"
+	tele "gopkg.in/telebot.v3"
 )
 
 type Telegram struct {

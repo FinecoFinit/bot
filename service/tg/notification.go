@@ -3,7 +3,7 @@ package tg
 import (
 	"bot/concierge"
 	"fmt"
-	tele "gopkg.in/telebot.v4"
+	tele "gopkg.in/telebot.v3"
 	"strconv"
 )
 

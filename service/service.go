@@ -9,7 +9,7 @@ import (
 	"database/sql"
 	"time"
 
-	tele "gopkg.in/telebot.v4"
+	tele "gopkg.in/telebot.v3"
 )
 
 type Unity struct {
