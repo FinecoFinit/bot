@@ -402,6 +402,12 @@ func (t Telegram) Verification(c tele.Context) error {
 		t.Logger.Error().Err(err).Msg("validation")
 		return c.Send("Ошибка создания сессии, обратитесь к администратору")
 	}
+	err = t.SessionStarted(user)
+	if err != nil {
+		t.Logger.Error().Err(err).Msg("validation")
+		return c.Send("Ошибка создания сессии, обратитесь к администратору")
+	}
+	t.Managers.SessionManager[user.ID] = true
 	go t.Session(&user, time.Now(), t.Managers.MessageManager[user.ID])
 
 	t.Logger.Info().Msg("session started for: " + user.UserName)

@@ -29,7 +29,7 @@ func (t Telegram) SessionEnded(u concierge.User) error {
 	if err != nil {
 		_, err = t.Tg.Send(tele.ChatID(t.Config.AdminWgChatID), err.Error(), &tele.SendOptions{ReplyTo: t.Managers.MessageManager[u.ID], ThreadID: t.Managers.MessageManager[u.ID].ThreadID})
 		if err != nil {
-			return fmt.Errorf("tg: failed to edit message %d: %v \n", t.Managers.MessageManager[u.ID], err)
+			return fmt.Errorf("tg: failed to edit message %w: %v \n", err, t.Managers.MessageManager[u.ID])
 		}
 		return fmt.Errorf("wg: tg: failed to edit message: %w", err)
 	}

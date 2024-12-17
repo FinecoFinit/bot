@@ -11,7 +11,6 @@ import (
 )
 
 func (t Telegram) Session(user *concierge.User, ti time.Time, statusMsg *tele.Message) {
-	t.Managers.SessionManager[user.ID] = true
 	for t.Managers.SessionManager[user.ID] {
 		wgCommand := exec.Command("wg", "show", "wg0-server", "dump")
 		out, err := wgCommand.Output()
