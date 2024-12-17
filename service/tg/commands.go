@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/pquerna/otp/totp"
@@ -42,11 +41,10 @@ func (t Telegram) Register(c tele.Context) error {
 
 	_, err = t.Tg.Send(
 		tele.ChatID(t.Config.AdminWgChatID),
-		"В очередь добавлен новый пользователь:\n🆔: ``"+strconv.FormatInt(c.Sender().ID, 10)+
-			"``\n👔: @"+c.Sender().Username+
-			"\n✉️: "+strings.Replace(c.Args()[0], ".", "\\.", 1), &tele.SendOptions{
-			ThreadID:  t.Config.AdminWgChatThread,
-			ParseMode: "MarkdownV2",
+		"В очередь добавлен новый пользователь:\n🆔: "+strconv.FormatInt(c.Sender().ID, 10)+
+			"\n👔: @"+c.Sender().Username+
+			"\n✉️: "+c.Args()[0], &tele.SendOptions{
+			ThreadID: t.Config.AdminWgChatThread,
 			ReplyMarkup: &tele.ReplyMarkup{
 				OneTimeKeyboard: true,
 				InlineKeyboard: [][]tele.InlineButton{{
