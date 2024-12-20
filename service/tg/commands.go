@@ -460,3 +460,22 @@ func (t Telegram) Edit(c tele.Context) error {
 
 	return c.Send("Изменение успешно произведено", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 }
+
+func (t Telegram) Update(c tele.Context) error {
+	err := t.Storage.GetAdminsIDs(t.Managers.AdminDBIDs)
+	if err != nil {
+		t.Logger.Error().Err(err).Msg("update:")
+		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+	}
+	err = t.Storage.GetUsersIDs(t.Managers.UserDBIDs)
+	if err != nil {
+		t.Logger.Error().Err(err).Msg("update:")
+		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+	}
+	err = t.Storage.GetQueueUsersIDs(t.Managers.QUserDBIDs)
+	if err != nil {
+		t.Logger.Error().Err(err).Msg("update:")
+		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+	}
+	return c.Send("Updated")
+}

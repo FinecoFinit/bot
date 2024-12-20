@@ -34,5 +34,6 @@ func (t Telegram) InitTelegram() {
 	t.Tg.Handle("/disable", t.Disable)
 	t.Tg.Handle("/get", t.Get)
 	t.Tg.Handle("/edit", t.Edit)
+	t.Tg.Handle("/update", t.Update)
 	t.Tg.Handle(tele.OnText, t.Verification)
 }
