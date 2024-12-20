@@ -342,15 +342,33 @@ func (t Telegram) Get(c tele.Context) error {
 	}
 
 	if c.Args() == nil {
-		return c.Send("```\n/get email```", &tele.SendOptions{ParseMode: "MarkdownV2"})
+		return c.Send("```\n/get user/sessions email```", &tele.SendOptions{ParseMode: "MarkdownV2"})
 	}
 
-	user, err := t.Storage.GetUserName(&c.Args()[0])
-	if err != nil {
-		t.Logger.Error().Err(err).Msg("get")
-		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+	switch c.Args()[0] {
+	case "user":
+		user, err := t.Storage.GetUserName(&c.Args()[1])
+		if err != nil {
+			t.Logger.Error().Err(err).Msg("get")
+			return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+		}
+		return c.Send(strconv.FormatInt(user.ID, 10)+" | "+user.UserName+" | "+user.AllowedIPs+" | "+t.Config.WgSubNet+strconv.Itoa(user.IP), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+	case "sessions":
+		var msg string
+		for u := range t.Managers.SessionManager {
+			user, err := t.Storage.GetUser(&u)
+			if err != nil {
+				t.Logger.Error().Err(err).Msg("get: sessions:")
+			}
+			msg = msg + strconv.FormatInt(u, 10) + " - " + user.UserName + "\n"
+		}
+		if msg == "" {
+			return c.Send("No sessions", &tele.SendOptions{ThreadID: c.Message().ThreadID})
+		}
+		return c.Send(msg, &tele.SendOptions{ThreadID: c.Message().ThreadID})
+	default:
+		return c.Send("Unknown argument")
 	}
-	return c.Send(strconv.FormatInt(user.ID, 10)+" | "+user.UserName+" | "+user.AllowedIPs+" | "+t.Config.WgSubNet+strconv.Itoa(user.IP), &tele.SendOptions{ThreadID: c.Message().ThreadID})
 }
 
 func (t Telegram) Verification(c tele.Context) error {
