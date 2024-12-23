@@ -166,5 +166,10 @@ func (t Telegram) SendCredsBtn(c tele.Context) error {
 		t.Logger.Error().Err(err).Msg("send_creds_btn")
 		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
 	}
+	_, err = t.Tg.Send(tele.ChatID(user.ID), "На почту отправлен конфигурационный файл и QR код для двухфакторной аутентификации, далее требуется вводить 2FA код для запуска сессии")
+	if err != nil {
+		t.Logger.Error().Err(err).Msg("send_creds_btn")
+		return c.Respond(&tele.CallbackResponse{Text: err.Error()})
+	}
 	return c.Respond(&tele.CallbackResponse{Text: "Креды отправлены", ShowAlert: false})
 }
