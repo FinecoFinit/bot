@@ -4,7 +4,9 @@ import (
 	"bot/concierge"
 	"bot/service/wg"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	tele "gopkg.in/telebot.v3"
 	"time"
 
 	"github.com/pquerna/otp/totp"
@@ -38,6 +40,7 @@ func (d MySql) GetUsers() ([]concierge.User, error) {
 			TOTPSecret       string
 			Session          int
 			SessionTimeStamp string
+			SessionMessageID string
 			Peer             string
 			PeerPre          string
 			PeerPub          string
@@ -51,6 +54,7 @@ func (d MySql) GetUsers() ([]concierge.User, error) {
 			&TOTPSecret,
 			&Session,
 			&SessionTimeStamp,
+			&SessionMessageID,
 			&Peer,
 			&PeerPre,
 			&PeerPub,
@@ -66,6 +70,7 @@ func (d MySql) GetUsers() ([]concierge.User, error) {
 			TOTPSecret:       TOTPSecret,
 			Session:          Session,
 			SessionTimeStamp: SessionTimeStamp,
+			SessionMessageID: SessionMessageID,
 			Peer:             Peer,
 			PeerPub:          PeerPub,
 			PeerPre:          PeerPre,
@@ -102,6 +107,7 @@ func (d MySql) GetUser(id *int64) (concierge.User, error) {
 			TOTPSecret       string
 			Session          int
 			SessionTimeStamp string
+			SessionMessageID string
 			Peer             string
 			PeerPre          string
 			PeerPub          string
@@ -115,6 +121,7 @@ func (d MySql) GetUser(id *int64) (concierge.User, error) {
 			&TOTPSecret,
 			&Session,
 			&SessionTimeStamp,
+			&SessionMessageID,
 			&Peer,
 			&PeerPre,
 			&PeerPub,
@@ -130,6 +137,7 @@ func (d MySql) GetUser(id *int64) (concierge.User, error) {
 			TOTPSecret:       TOTPSecret,
 			Session:          Session,
 			SessionTimeStamp: SessionTimeStamp,
+			SessionMessageID: SessionMessageID,
 			Peer:             Peer,
 			PeerPre:          PeerPre,
 			PeerPub:          PeerPub,
@@ -165,6 +173,7 @@ func (d MySql) GetUserName(u *string) (concierge.User, error) {
 			TOTPSecret       string
 			Session          int
 			SessionTimeStamp string
+			SessionMessageID string
 			Peer             string
 			PeerPre          string
 			PeerPub          string
@@ -178,6 +187,7 @@ func (d MySql) GetUserName(u *string) (concierge.User, error) {
 			&TOTPSecret,
 			&Session,
 			&SessionTimeStamp,
+			&SessionMessageID,
 			&Peer,
 			&PeerPre,
 			&PeerPub,
@@ -193,6 +203,7 @@ func (d MySql) GetUserName(u *string) (concierge.User, error) {
 			TOTPSecret:       TOTPSecret,
 			Session:          Session,
 			SessionTimeStamp: SessionTimeStamp,
+			SessionMessageID: SessionMessageID,
 			Peer:             Peer,
 			PeerPre:          PeerPre,
 			PeerPub:          PeerPub,
@@ -467,13 +478,14 @@ func (d MySql) UnRegisterQUser(qUser *concierge.QueueUser) error {
 
 func (d MySql) RegisterUser(user *concierge.User) error {
 	_, err := d.MySql.Exec(
-		"INSERT INTO users(ID, UserName, Enabled, TOTPSecret, Session, SessionTimeStamp, Peer, PeerPre, PeerPub, AllowedIPs, IP) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+		"INSERT INTO users(ID, UserName, Enabled, TOTPSecret, Session, SessionTimeStamp, SessionMessageID, Peer, PeerPre, PeerPub, AllowedIPs, IP) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
 		&user.ID,
 		&user.UserName,
 		&user.Enabled,
 		&user.TOTPSecret,
 		&user.Session,
 		&user.SessionTimeStamp,
+		&user.SessionMessageID,
 		&user.Peer,
 		&user.PeerPre,
 		&user.PeerPub,
@@ -522,27 +534,28 @@ func (d MySql) DisableUser(id *int64) error {
 	return nil
 }
 
-func (d MySql) Edit(user *concierge.User, param string, val string) error {
-	switch param {
-	case "allowedips":
-		_, err := d.MySql.Exec("UPDATE users SET AllowedIPs = $1 WHERE ID = $2", val, user.ID)
-		if err != nil {
-			return fmt.Errorf("db: failed to edit row: %w", err)
-		}
-	case "ip":
-		_, err := d.MySql.Exec("UPDATE users SET IP = $1 WHERE ID = $2", val, user.ID)
-		if err != nil {
-			return fmt.Errorf("db: failed to edit row: %w", err)
-		}
-	default:
-		return fmt.Errorf("unknown param: %s", param)
-
+func (d MySql) SetAllowedIPs(id int64, val string) error {
+	_, err := d.MySql.Exec("UPDATE users SET AllowedIPs = $1 WHERE ID = $2", val, id)
+	if err != nil {
+		return fmt.Errorf("db: failed to edit row: %w", err)
 	}
 	return nil
 }
 
-func (d MySql) SessionStarted(id int64, time time.Time) error {
-	_, err := d.MySql.Exec("UPDATE users SET Session = $1,SessionTimeStamp = $2 WHERE id = $3", 1, time.String(), id)
+func (d MySql) SetIp(id int64, val string) error {
+	_, err := d.MySql.Exec("UPDATE users SET IP = $1 WHERE ID = $2", val, id)
+	if err != nil {
+		return fmt.Errorf("db: failed to edit row: %w", err)
+	}
+	return nil
+}
+
+func (d MySql) SessionStarted(id int64, t time.Time, message *tele.Message) error {
+	j, err := json.Marshal(message)
+	if err != nil {
+		return fmt.Errorf("db: failed to marshal session started: %w", err)
+	}
+	_, err = d.MySql.Exec("UPDATE users SET Session = $1,SessionTimeStamp = $2,SessionMessageID = $3 WHERE id = $4", 1, t.Format(time.DateTime), string(j[:]), id)
 	if err != nil {
 		return fmt.Errorf("db: failed to set start session: %w", err)
 	}
@@ -550,9 +563,73 @@ func (d MySql) SessionStarted(id int64, time time.Time) error {
 }
 
 func (d MySql) SessionEnded(id int64) error {
-	_, err := d.MySql.Exec("UPDATE users SET Session = $1 WHERE id = $3", 0, id)
+	_, err := d.MySql.Exec("UPDATE users SET Session = $1 WHERE id = $2", 0, id)
 	if err != nil {
 		return fmt.Errorf("db: failed to set start session: %w", err)
+	}
+	return nil
+}
+
+func (d MySql) UpdateMessage(message *tele.Message, id int64) error {
+	j, err := json.Marshal(message)
+	if err != nil {
+		return fmt.Errorf("db: failed to marshal update message: %w", err)
+	}
+	_, err = d.MySql.Exec("UPDATE users SET SessionMessageID = $1 WHERE id = $2", j, id)
+	if err != nil {
+		return fmt.Errorf("db: failed to set start session: %w", err)
+	}
+	return nil
+}
+
+func (d MySql) AddTimedEnable(id int64, t time.Time) error {
+	_, err := d.MySql.Exec("INSERT INTO timed_enable(id, date) VALUES($1, $2)", id, t.Format("2006-01-02 15:04:05 Z0700"))
+	if err != nil {
+		return fmt.Errorf("db: failed to add timed enable: %w", err)
+	}
+	return nil
+}
+
+func (d MySql) GetTimedEnable() ([]concierge.TimedEnable, error) {
+	rows, err := d.MySql.Query("SELECT * FROM timed_enable")
+	if err != nil {
+		return nil, fmt.Errorf("db: query failed: %w", err)
+	}
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			fmt.Printf("Error closing rows: %v\n", err)
+		}
+	}(rows)
+
+	var timedUsers []concierge.TimedEnable
+
+	for rows.Next() {
+		var (
+			ID   int64
+			Date string
+		)
+		err = rows.Scan(
+			&ID,
+			&Date)
+		if err != nil {
+			return nil, fmt.Errorf("db: failed to scan row: %w", err)
+		}
+		timedUsers = append(timedUsers, concierge.TimedEnable{
+			ID:   ID,
+			Date: Date})
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("db: rows: %w", err)
+	}
+
+	return timedUsers, nil
+}
+
+func (d MySql) DelTimedEnable(id int64) error {
+	_, err := d.MySql.Exec("DELETE FROM timed_enable WHERE id = $1", id)
+	if err != nil {
+		return fmt.Errorf("db: failed to del timed enable: %w", err)
 	}
 	return nil
 }

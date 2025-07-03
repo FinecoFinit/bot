@@ -26,6 +26,7 @@ func Initialize(c concierge.Config) (Unity, error) {
 		uDBids         []int64
 		qDBids         []int64
 		sessionManager = make(map[int64]bool)
+		timedManager   = make(map[int64]bool)
 		messageManager = make(map[int64]*tele.Message)
 		tgBot          *tele.Bot
 	)
@@ -51,6 +52,7 @@ func Initialize(c concierge.Config) (Unity, error) {
 		QUserDBIDs:     &qDBids,
 		SessionManager: sessionManager,
 		MessageManager: messageManager,
+		TimedManager:   timedManager,
 	}
 
 	emailClient, err := InitEmail(c)

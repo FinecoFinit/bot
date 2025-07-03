@@ -19,11 +19,12 @@ func (t Telegram) Session(user *concierge.User, ti time.Time, statusMsg *tele.Me
 		}
 
 		if slices.IndexFunc(strings.Split(string(out), "\n"), func(c string) bool { return strings.Contains(c, user.PeerPub) }) == -1 {
-			err := t.SessionEnded(*user)
+			err := t.NoticeSessionEnded(*user)
 			if err != nil {
 				t.Logger.Err(err).Msg("wg: failed to find wg peer")
 			}
-			t.Managers.SessionManager[user.ID] = false
+			delete(t.Managers.MessageManager, user.ID)
+			delete(t.Managers.SessionManager, user.ID)
 			return
 		}
 
@@ -44,6 +45,10 @@ func (t Telegram) Session(user *concierge.User, ti time.Time, statusMsg *tele.Me
 				t.Logger.Err(err).Msg("session: wg: tg: failed to edit status message")
 			}
 			statusMsg.Text = statusMsgText
+			err = t.Storage.UpdateMessage(statusMsg, user.ID)
+			if err != nil {
+				t.Logger.Err(err).Msg("session: wg: failed to update status message")
+			}
 		}
 
 		if time.Now().Compare(ti.Add(time.Hour*11)) == +1 {
@@ -51,11 +56,33 @@ func (t Telegram) Session(user *concierge.User, ti time.Time, statusMsg *tele.Me
 			if err != nil {
 				t.Logger.Err(err).Msg("session: wg: failed to stop session")
 			}
-			err = t.SessionEnded(*user)
+			err = t.NoticeSessionEnded(*user)
 			if err != nil {
 				t.Logger.Err(err).Msg("session: wg: failed to end session")
 			}
-			t.Managers.SessionManager[user.ID] = false
+			delete(t.Managers.MessageManager, user.ID)
+			delete(t.Managers.SessionManager, user.ID)
+		}
+		time.Sleep(30 * time.Second)
+	}
+}
+
+func (t Telegram) Timed(id int64, ti time.Time) {
+	for t.Managers.TimedManager[id] {
+		if time.Now().After(ti) {
+			err := t.Storage.EnableUser(&id)
+			if err != nil {
+				t.Logger.Err(err).Msg("timed: tg: failed to enable user")
+			}
+			err = t.NoticeTimedActivated(id)
+			if err != nil {
+				t.Logger.Err(err).Msg("timed: timed: failed to activate timed message")
+			}
+			err = t.Storage.DelTimedEnable(id)
+			if err != nil {
+				t.Logger.Err(err).Msg("timed: timed: failed to delete timed message")
+			}
+			delete(t.Managers.TimedManager, id)
 		}
 		time.Sleep(30 * time.Second)
 	}

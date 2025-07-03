@@ -39,6 +39,7 @@ func (t Telegram) RegisterAccept(c tele.Context) error {
 		TOTPSecret:       qUser.TOTPSecret,
 		Session:          0,
 		SessionTimeStamp: "never",
+		SessionMessageID: "never",
 		Peer:             qUser.Peer,
 		PeerPre:          qUser.PeerPre,
 		PeerPub:          qUser.PeerPub,
@@ -148,6 +149,21 @@ func (t Telegram) StopSession(c tele.Context) error {
 	err = t.Wireguard.WgStopSession(&user)
 	if err != nil {
 		t.Logger.Error().Err(err).Msg("stop_session: failed to stop session from button")
+		return c.Respond(&tele.CallbackResponse{Text: "wg: Не удалось остановить сессию"})
+	}
+
+	err = t.Storage.SessionEnded(id)
+	if err != nil {
+		t.Logger.Error().Err(err).Msg("stop_session: failed to stop session from button")
+		return c.Respond(&tele.CallbackResponse{Text: "wg: Не удалось остановить сессию"})
+	}
+
+	delete(t.Managers.MessageManager, user.ID)
+	delete(t.Managers.SessionManager, user.ID)
+
+	_, err = t.Tg.Edit(c.Message(), strings.ReplaceAll(c.Message().Text, ".", "\\.")+"\nСессия завершена", &tele.SendOptions{ParseMode: "MarkdownV2"})
+	if err != nil {
+		t.Logger.Error().Err(err).Msg("stop_session: failed to edit session message")
 		return c.Respond(&tele.CallbackResponse{Text: "wg: Не удалось остановить сессию"})
 	}
 

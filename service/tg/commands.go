@@ -19,7 +19,7 @@ func (t Telegram) Start(c tele.Context) error {
 func (t Telegram) Register(c tele.Context) error {
 
 	if c.Args() == nil {
-		return c.Send("```\n/register email```", &tele.SendOptions{ParseMode: "MarkdownV2"})
+		return c.Send("```\n/register email```", &tele.SendOptions{ParseMode: "MarkdownV2", ThreadID: c.Message().ThreadID})
 	}
 
 	if len(c.Args()) != 1 {
@@ -44,7 +44,7 @@ func (t Telegram) Register(c tele.Context) error {
 		"В очередь добавлен новый пользователь:\n🆔: "+strconv.FormatInt(c.Sender().ID, 10)+
 			"\n👔: @"+c.Sender().Username+
 			"\n✉️: "+c.Args()[0], &tele.SendOptions{
-			ThreadID: t.Config.AdminWgChatThread,
+			ThreadID: t.Config.AdminWgChatThreadHelm,
 			ReplyMarkup: &tele.ReplyMarkup{
 				OneTimeKeyboard: true,
 				InlineKeyboard: [][]tele.InlineButton{{
@@ -74,7 +74,7 @@ func (t Telegram) Accept(c tele.Context) error {
 	}
 
 	if c.Args() == nil {
-		return c.Send("```\n/accept id allowedips```", &tele.SendOptions{ParseMode: "MarkdownV2"})
+		return c.Send("```\n/accept id allowedips```", &tele.SendOptions{ParseMode: "MarkdownV2", ThreadID: c.Message().ThreadID})
 	}
 
 	if len(c.Args()) != 2 {
@@ -99,6 +99,7 @@ func (t Telegram) Accept(c tele.Context) error {
 		TOTPSecret:       qUser.TOTPSecret,
 		Session:          0,
 		SessionTimeStamp: "never",
+		SessionMessageID: "never",
 		Peer:             qUser.Peer,
 		PeerPre:          qUser.PeerPre,
 		PeerPub:          qUser.PeerPub,
@@ -133,7 +134,7 @@ func (t Telegram) AddUser(c tele.Context) error {
 	}
 
 	if c.Args() == nil {
-		return c.Send("```\n/adduser id email 0/1(disable/enabled) totp_secret wg_private wg_preshared wg_public allowedips ip```", &tele.SendOptions{ParseMode: "MarkdownV2"})
+		return c.Send("```\n/adduser id email 0/1(disable/enabled) totp_secret wg_private wg_preshared wg_public allowedips ip```", &tele.SendOptions{ParseMode: "MarkdownV2", ThreadID: c.Message().ThreadID})
 	}
 
 	if len(c.Args()) != 8 {
@@ -160,6 +161,7 @@ func (t Telegram) AddUser(c tele.Context) error {
 		TOTPSecret:       c.Args()[3],
 		Session:          0,
 		SessionTimeStamp: "never",
+		SessionMessageID: "never",
 		Peer:             c.Args()[4],
 		PeerPre:          c.Args()[5],
 		PeerPub:          c.Args()[6],
@@ -188,7 +190,7 @@ func (t Telegram) DelUser(c tele.Context) error {
 	}
 
 	if c.Args() == nil {
-		return c.Send("```\n/deluser id```", &tele.SendOptions{ParseMode: "MarkdownV2"})
+		return c.Send("```\n/deluser id```", &tele.SendOptions{ParseMode: "MarkdownV2", ThreadID: c.Message().ThreadID})
 	}
 
 	if len(c.Args()) != 1 {
@@ -204,6 +206,23 @@ func (t Telegram) DelUser(c tele.Context) error {
 	if err != nil {
 		t.Logger.Error().Err(err).Msg("failed to get user")
 		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+	}
+
+	if t.Managers.SessionManager[user.ID] {
+		err = t.Wireguard.WgStopSession(&user)
+		if err != nil {
+			t.Logger.Error().Err(err).Msg("disable")
+			return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+		}
+		err = t.NoticeSessionEnded(user)
+		if err != nil {
+			t.Logger.Error().Err(err).Msg("disable")
+			return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+		}
+		_, err = t.Tg.Edit(t.Managers.MessageManager[user.ID], t.Managers.MessageManager[user.ID].Text+"\nСессия завершена", &tele.SendOptions{ParseMode: "MarkdownV2"})
+		t.Logger.Info().Msg("disable: forcefully stopped session of: " + user.UserName)
+		delete(t.Managers.MessageManager, user.ID)
+		delete(t.Managers.SessionManager, user.ID)
 	}
 
 	err = t.Storage.UnregisterUser(&user)
@@ -228,7 +247,7 @@ func (t Telegram) SendCreds(c tele.Context) error {
 	}
 
 	if c.Args() == nil {
-		return c.Send("```\n/sendcreds id```", &tele.SendOptions{ParseMode: "MarkdownV2"})
+		return c.Send("```\n/sendcreds id```", &tele.SendOptions{ParseMode: "MarkdownV2", ThreadID: c.Message().ThreadID})
 	}
 
 	if len(c.Args()) != 1 {
@@ -260,81 +279,6 @@ func (t Telegram) SendCreds(c tele.Context) error {
 	return c.Send("Креды отправлены", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 }
 
-func (t Telegram) Enable(c tele.Context) error {
-	if !slices.Contains(*t.Managers.AdminDBIDs, c.Sender().ID) {
-		t.Logger.Warn().Msg("enable: non admin user tried to use /enable " + strconv.FormatInt(c.Sender().ID, 10))
-		return c.Send("Unknown", &tele.SendOptions{ThreadID: c.Message().ThreadID})
-	}
-
-	if c.Args() == nil {
-		return c.Send("```\n/enable id```", &tele.SendOptions{ParseMode: "MarkdownV2"})
-	}
-
-	id, err := strconv.ParseInt(c.Args()[0], 10, 64)
-	if err != nil {
-		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
-	}
-
-	user, err := t.Storage.GetUser(&id)
-	if err != nil {
-		t.Logger.Error().Err(err).Msg("enable")
-		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
-	}
-
-	err = t.Storage.EnableUser(&user.ID)
-	if err != nil {
-		t.Logger.Error().Err(err).Msg("enable")
-		return c.Send("Не удалось активировать пользователя", &tele.SendOptions{ThreadID: c.Message().ThreadID})
-	}
-
-	return c.Send("Пользователь "+c.Args()[0]+" активирован", &tele.SendOptions{ThreadID: c.Message().ThreadID})
-}
-
-func (t Telegram) Disable(c tele.Context) error {
-	if !slices.Contains(*t.Managers.AdminDBIDs, c.Sender().ID) {
-		t.Logger.Warn().Msg("enable: non admin user tried to use /disable " + strconv.FormatInt(c.Sender().ID, 10))
-		return c.Send("Unknown", &tele.SendOptions{ThreadID: c.Message().ThreadID})
-	}
-
-	if c.Args() == nil {
-		return c.Send("```\n/disable id```", &tele.SendOptions{ParseMode: "MarkdownV2"})
-	}
-
-	id, err := strconv.ParseInt(c.Args()[0], 10, 64)
-	if err != nil {
-		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
-	}
-
-	user, err := t.Storage.GetUser(&id)
-	if err != nil {
-		t.Logger.Error().Err(err).Msg("enable")
-		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
-	}
-
-	if t.Managers.SessionManager[user.ID] {
-		err = t.Wireguard.WgStopSession(&user)
-		if err != nil {
-			t.Logger.Error().Err(err).Msg("disable")
-			return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
-		}
-		err = t.SessionEnded(user)
-		if err != nil {
-			t.Logger.Error().Err(err).Msg("disable")
-			return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
-		}
-		t.Logger.Info().Msg("disable: forcefully stopped session of: " + user.UserName)
-		t.Managers.SessionManager[user.ID] = false
-	}
-
-	err = t.Storage.DisableUser(&user.ID)
-	if err != nil {
-		t.Logger.Error().Err(err).Msg("disable")
-		return c.Send("Не удалось деактивировать пользователя", &tele.SendOptions{ThreadID: c.Message().ThreadID})
-	}
-
-	return c.Send("Пользователь "+c.Args()[0]+" деактивирован", &tele.SendOptions{ThreadID: c.Message().ThreadID})
-}
-
 func (t Telegram) Get(c tele.Context) error {
 	if !slices.Contains(*t.Managers.AdminDBIDs, c.Sender().ID) {
 		t.Logger.Warn().Msg("enable: non admin user tried to use /get " + strconv.FormatInt(c.Sender().ID, 10))
@@ -342,7 +286,7 @@ func (t Telegram) Get(c tele.Context) error {
 	}
 
 	if c.Args() == nil {
-		return c.Send("```\n/get user/sessions email```", &tele.SendOptions{ParseMode: "MarkdownV2"})
+		return c.Send("```\n/get user/sessions email```", &tele.SendOptions{ParseMode: "MarkdownV2", ThreadID: c.Message().ThreadID})
 	}
 
 	switch c.Args()[0] {
@@ -366,8 +310,116 @@ func (t Telegram) Get(c tele.Context) error {
 			return c.Send("No sessions", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 		}
 		return c.Send(msg, &tele.SendOptions{ThreadID: c.Message().ThreadID})
+	case "timed":
+		var msg string
+		for u := range t.Managers.TimedManager {
+			user, err := t.Storage.GetUser(&u)
+			if err != nil {
+				t.Logger.Error().Err(err).Msg("get: timed:")
+			}
+			msg = msg + strconv.FormatInt(u, 10) + " - " + user.UserName + "\n"
+		}
+		if msg == "" {
+			return c.Send("No timed users", &tele.SendOptions{ThreadID: c.Message().ThreadID})
+		}
+		return c.Send(msg, &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	default:
-		return c.Send("Unknown argument")
+		return c.Send("Unknown argument", &tele.SendOptions{ThreadID: c.Message().ThreadID})
+	}
+}
+
+func (t Telegram) Set(c tele.Context) error {
+	if !slices.Contains(*t.Managers.AdminDBIDs, c.Sender().ID) {
+		t.Logger.Warn().Msg("enable: non admin user tried to use /enable " + strconv.FormatInt(c.Sender().ID, 10))
+		return c.Send("Unknown", &tele.SendOptions{ThreadID: c.Message().ThreadID})
+	}
+
+	if c.Args() == nil {
+		return c.Send("```\n/timedenable date id```", &tele.SendOptions{ParseMode: "MarkdownV2", ThreadID: c.Message().ThreadID})
+	}
+
+	id, err := strconv.ParseInt(c.Args()[1], 10, 64)
+	if err != nil {
+		t.Logger.Error().Err(err).Msg("set: failed to parse id")
+		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+	}
+
+	user, err := t.Storage.GetUser(&id)
+	if err != nil {
+		t.Logger.Error().Err(err).Msg("set: failed to find user")
+	}
+
+	switch c.Args()[0] {
+	case "timed":
+		st, err := time.Parse("2006-01-02 15:04:05 Z0700", c.Args()[2]+" 08:00:00 "+time.Now().Format("Z0700"))
+		if err != nil {
+			t.Logger.Error().Err(err).Msg("timedenenable failed to parse time")
+			return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+		}
+		if time.Now().Before(st) {
+			err = t.Storage.DisableUser(&id)
+			if err != nil {
+				t.Logger.Error().Err(err).Msg("timedenenable failed to disable user")
+				return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+			}
+		}
+		err = t.Storage.AddTimedEnable(id, st)
+		if err != nil {
+			t.Logger.Error().Err(err).Msg("timedenenable failed")
+			return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+		}
+		t.Managers.TimedManager[id] = true
+		go t.Timed(id, st)
+		return c.Send("Пользователь установлен в очередь", &tele.SendOptions{ThreadID: c.Message().ThreadID})
+	case "enable":
+		err = t.Storage.EnableUser(&id)
+		if err != nil {
+			t.Logger.Error().Err(err).Msg("enable")
+			return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+		}
+		return c.Send("Пользователь активирован", &tele.SendOptions{ThreadID: c.Message().ThreadID})
+	case "disable":
+		if t.Managers.SessionManager[user.ID] {
+			err = t.Wireguard.WgStopSession(&user)
+			if err != nil {
+				t.Logger.Error().Err(err).Msg("disable")
+				return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+			}
+			err = t.NoticeSessionEnded(user)
+			if err != nil {
+				t.Logger.Error().Err(err).Msg("disable")
+				return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+			}
+			err = t.Storage.SessionEnded(user.ID)
+			if err != nil {
+				t.Logger.Error().Err(err).Msg("disable")
+			}
+			t.Logger.Info().Msg("disable: forcefully stopped session for: " + user.UserName)
+			delete(t.Managers.MessageManager, user.ID)
+			delete(t.Managers.SessionManager, user.ID)
+		}
+		err = t.Storage.DisableUser(&id)
+		if err != nil {
+			t.Logger.Error().Err(err).Msg("disable")
+			return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+		}
+		return c.Send("Пользователь деактивирован", &tele.SendOptions{ThreadID: c.Message().ThreadID})
+	case "ip":
+		err = t.Storage.SetIp(id, c.Args()[2])
+		if err != nil {
+			t.Logger.Error().Err(err).Msg("ip")
+			return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+		}
+		return c.Send("IP адрес отредактирован", &tele.SendOptions{ThreadID: c.Message().ThreadID})
+	case "allowedips":
+		err = t.Storage.SetAllowedIPs(id, c.Args()[2])
+		if err != nil {
+			t.Logger.Error().Err(err).Msg("allowedips")
+			return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
+		}
+		return c.Send("AllowedIPs отредактированы", &tele.SendOptions{ThreadID: c.Message().ThreadID})
+	default:
+		return c.Send("Unknown argument", &tele.SendOptions{ThreadID: c.Message().ThreadID})
 	}
 }
 
@@ -418,11 +470,16 @@ func (t Telegram) Verification(c tele.Context) error {
 		t.Logger.Error().Err(err).Msg("validation")
 		return c.Send("Ошибка создания сессии, обратитесь к администратору")
 	}
-	err = t.SessionStarted(user)
+	msg, err := t.NoticeSessionStarted(user)
 	if err != nil {
 		t.Logger.Error().Err(err).Msg("validation")
 		return c.Send("Ошибка создания сессии, обратитесь к администратору")
 	}
+	err = t.Storage.SessionStarted(c.Sender().ID, time.Now(), msg)
+	if err != nil {
+		t.Logger.Error().Err(err).Msg("validation")
+	}
+	t.Managers.MessageManager[user.ID] = msg
 	t.Managers.SessionManager[user.ID] = true
 	go t.Session(&user, time.Now(), t.Managers.MessageManager[user.ID])
 
@@ -431,37 +488,7 @@ func (t Telegram) Verification(c tele.Context) error {
 	return c.Send("Сессия создана")
 }
 
-func (t Telegram) Edit(c tele.Context) error {
-	if !funk.ContainsInt64(*t.Managers.UserDBIDs, c.Sender().ID) {
-		t.Logger.Warn().Msg("unregistered user sent message:" + strconv.FormatInt(c.Sender().ID, 10) + " " + c.Sender().Username)
-		return c.Send("Error")
-	}
-
-	if c.Args() == nil {
-		return c.Send("```\n/edit id param value```", &tele.SendOptions{ParseMode: "MarkdownV2"})
-	}
-
-	id, err := strconv.ParseInt(c.Args()[0], 10, 64)
-	if err != nil {
-		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
-	}
-
-	user, err := t.Storage.GetUser(&id)
-	if err != nil {
-		t.Logger.Error().Err(err).Msg("edit")
-		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
-	}
-
-	err = t.Storage.Edit(&user, c.Args()[1], c.Args()[2])
-	if err != nil {
-		t.Logger.Error().Err(err).Msg("edit")
-		return c.Send(err.Error(), &tele.SendOptions{ThreadID: c.Message().ThreadID})
-	}
-
-	return c.Send("Изменение успешно произведено", &tele.SendOptions{ThreadID: c.Message().ThreadID})
-}
-
-func (t Telegram) Update(c tele.Context) error {
+func (t Telegram) Reload(c tele.Context) error {
 	err := t.Storage.GetAdminsIDs(t.Managers.AdminDBIDs)
 	if err != nil {
 		t.Logger.Error().Err(err).Msg("update:")

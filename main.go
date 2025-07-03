@@ -17,6 +17,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	go app.Telegram.RestoreSessions()
+	go app.Telegram.RestoreTimedEnable()
 	app.Telegram.Tg.Start()
-
 }

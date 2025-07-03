@@ -9,26 +9,28 @@ type Managers struct {
 	UserDBIDs      *[]int64
 	QUserDBIDs     *[]int64
 	SessionManager map[int64]bool
+	TimedManager   map[int64]bool
 	MessageManager map[int64]*tele.Message
 }
 
 type Config struct {
-	AdminWgChatID     int64  `yaml:"admin_wg_chat"`
-	AdminWgChatThread int    `yaml:"admin_wg_chat_thread"`
-	WgPublicIP        string `yaml:"wg_public_ip"`
-	WgSubNet          string `yaml:"wg_sub_net"`
-	WgPublicKey       string `yaml:"wg_public_key"`
-	WgPreKeysDir      string `yaml:"wg_pre_keys_dir"`
-	WgAllowedIps      string `yaml:"wg_allowed_ips"`
-	WgDNS             string `yaml:"wg_dns"`
-	TgToken           string `yaml:"telegram_token"`
-	DbPath            string `yaml:"db_path"`
-	EmailUser         string `yaml:"email_user"`
-	EmailPassword     string `yaml:"email_password"`
-	EmailAddress      string `yaml:"email_address"`
-	LogFilePath       string `yaml:"log_file_path"`
-	ConfPrefix        string `yaml:"conf_prefix"`
-	TotpVendor        string `yaml:"totp_vendor"`
+	AdminWgChatID         int64  `yaml:"admin_wg_chat"`
+	AdminWgChatThread     int    `yaml:"admin_wg_chat_thread"`
+	AdminWgChatThreadHelm int    `yaml:"admin_wg_chat_thread_helm"`
+	WgPublicIP            string `yaml:"wg_public_ip"`
+	WgSubNet              string `yaml:"wg_sub_net"`
+	WgPublicKey           string `yaml:"wg_public_key"`
+	WgPreKeysDir          string `yaml:"wg_pre_keys_dir"`
+	WgAllowedIps          string `yaml:"wg_allowed_ips"`
+	WgDNS                 string `yaml:"wg_dns"`
+	TgToken               string `yaml:"telegram_token"`
+	DbPath                string `yaml:"db_path"`
+	EmailUser             string `yaml:"email_user"`
+	EmailPassword         string `yaml:"email_password"`
+	EmailAddress          string `yaml:"email_address"`
+	LogFilePath           string `yaml:"log_file_path"`
+	ConfPrefix            string `yaml:"conf_prefix"`
+	TotpVendor            string `yaml:"totp_vendor"`
 }
 
 type User struct {
@@ -38,6 +40,7 @@ type User struct {
 	TOTPSecret       string
 	Session          int
 	SessionTimeStamp string
+	SessionMessageID string
 	Peer             string
 	PeerPre          string
 	PeerPub          string
@@ -58,4 +61,9 @@ type QueueUser struct {
 	PeerPub    string
 	PeerPre    string
 	IP         int
+}
+
+type TimedEnable struct {
+	ID   int64
+	Date string
 }
